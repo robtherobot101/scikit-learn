@@ -24,9 +24,10 @@ from ._splitter cimport SplitRecord
 
 cdef struct Node:
     # Base storage structure for the nodes in a Tree object
-
-    SIZE_t left_child                    # id of the left child of the node
-    SIZE_t right_child                   # id of the right child of the node
+    SIZE_t* children
+    SIZE_t n_children
+    # SIZE_t left_child                    # id of the left child of the node
+    # SIZE_t right_child                   # id of the right child of the node
     SIZE_t feature                       # Feature used for splitting the node
     DOUBLE_t threshold                   # Threshold value at the node
     DOUBLE_t impurity                    # Impurity of the node (i.e., the value of the criterion)

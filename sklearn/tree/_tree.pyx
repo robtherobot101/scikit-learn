@@ -19,6 +19,7 @@
 from cpython cimport Py_INCREF, PyObject
 
 from libc.stdlib cimport free
+from libc.stdlib cimport malloc
 from libc.math cimport fabs
 from libc.string cimport memcpy
 from libc.string cimport memset
@@ -68,13 +69,13 @@ cdef SIZE_t INITIAL_STACK_SIZE = 10
 
 # Repeat struct definition for numpy
 NODE_DTYPE = np.dtype({
-    'names': ['left_child', 'right_child', 'feature', 'threshold', 'impurity',
+    'names': ['children', 'n_children', 'feature', 'threshold', 'impurity',
               'n_node_samples', 'weighted_n_node_samples'],
-    'formats': [np.intp, np.intp, np.intp, np.float64, np.float64, np.intp,
+    'formats': [np.ndarray, np.intp, np.intp, np.float64, np.float64, np.intp,
                 np.float64],
     'offsets': [
-        <Py_ssize_t> &(<Node*> NULL).left_child,
-        <Py_ssize_t> &(<Node*> NULL).right_child,
+        <Py_ssize_t> &(<Node*> NULL).children,
+        <Py_ssize_t> &(<Node*> NULL).n_children,
         <Py_ssize_t> &(<Node*> NULL).feature,
         <Py_ssize_t> &(<Node*> NULL).threshold,
         <Py_ssize_t> &(<Node*> NULL).impurity,
@@ -370,8 +371,8 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
 
                 if is_leaf:
                     # Node is not expandable; set node as leaf
-                    node.left_child = _TREE_LEAF
-                    node.right_child = _TREE_LEAF
+                    node.children[0] = _TREE_LEAF
+                    node.children[1] = _TREE_LEAF
                     node.feature = _TREE_UNDEFINED
                     node.threshold = _TREE_UNDEFINED
 
@@ -741,19 +742,21 @@ cdef class Tree:
                 return <SIZE_t>(-1)
 
         cdef Node* node = &self.nodes[node_id]
+        node.n_children = 2
+        node.children = <SIZE_t *>malloc(2 * sizeof(Node))
         node.impurity = impurity
         node.n_node_samples = n_node_samples
         node.weighted_n_node_samples = weighted_n_node_samples
 
         if parent != _TREE_UNDEFINED:
             if is_left:
-                self.nodes[parent].left_child = node_id
+                self.nodes[parent].children[0] = node_id
             else:
-                self.nodes[parent].right_child = node_id
+                self.nodes[parent].children[1] = node_id
 
         if is_leaf:
-            node.left_child = _TREE_LEAF
-            node.right_child = _TREE_LEAF
+            node.children[0] = _TREE_LEAF
+            node.children[1] = _TREE_LEAF
             node.feature = _TREE_UNDEFINED
             node.threshold = _TREE_UNDEFINED
 
@@ -808,12 +811,12 @@ cdef class Tree:
             for i in range(n_samples):
                 node = self.nodes
                 # While node not a leaf
-                while node.left_child != _TREE_LEAF:
+                while node.children[0] != _TREE_LEAF:
                     # ... and node.right_child != _TREE_LEAF:
                     if X_ndarray[i, node.feature] <= node.threshold:
-                        node = &self.nodes[node.left_child]
+                        node = &self.nodes[node.children[0]]
                     else:
-                        node = &self.nodes[node.right_child]
+                        node = &self.nodes[node.children[1]]
 
                 out_ptr[i] = <SIZE_t>(node - self.nodes)  # node offset
 
@@ -873,7 +876,7 @@ cdef class Tree:
                     X_sample[X_indices[k]] = X_data[k]
 
                 # While node not a leaf
-                while node.left_child != _TREE_LEAF:
+                while node.children[0] != _TREE_LEAF:
                     # ... and node.right_child != _TREE_LEAF:
                     if feature_to_sample[node.feature] == i:
                         feature_value = X_sample[node.feature]
@@ -882,9 +885,9 @@ cdef class Tree:
                         feature_value = 0.
 
                     if feature_value <= node.threshold:
-                        node = &self.nodes[node.left_child]
+                        node = &self.nodes[node.children[0]]
                     else:
-                        node = &self.nodes[node.right_child]
+                        node = &self.nodes[node.children[1]]
 
                 out_ptr[i] = <SIZE_t>(node - self.nodes)  # node offset
 
@@ -935,15 +938,15 @@ cdef class Tree:
                 indptr_ptr[i + 1] = indptr_ptr[i]
 
                 # Add all external nodes
-                while node.left_child != _TREE_LEAF:
+                while node.children[0] != _TREE_LEAF:
                     # ... and node.right_child != _TREE_LEAF:
                     indices_ptr[indptr_ptr[i + 1]] = <SIZE_t>(node - self.nodes)
                     indptr_ptr[i + 1] += 1
 
                     if X_ndarray[i, node.feature] <= node.threshold:
-                        node = &self.nodes[node.left_child]
+                        node = &self.nodes[node.children[0]]
                     else:
-                        node = &self.nodes[node.right_child]
+                        node = &self.nodes[node.children[1]]
 
                 # Add the leave node
                 indices_ptr[indptr_ptr[i + 1]] = <SIZE_t>(node - self.nodes)
@@ -1016,7 +1019,7 @@ cdef class Tree:
                     X_sample[X_indices[k]] = X_data[k]
 
                 # While node not a leaf
-                while node.left_child != _TREE_LEAF:
+                while node.children[0] != _TREE_LEAF:
                     # ... and node.right_child != _TREE_LEAF:
 
                     indices_ptr[indptr_ptr[i + 1]] = <SIZE_t>(node - self.nodes)
@@ -1029,9 +1032,9 @@ cdef class Tree:
                         feature_value = 0.
 
                     if feature_value <= node.threshold:
-                        node = &self.nodes[node.left_child]
+                        node = &self.nodes[node.children[0]]
                     else:
-                        node = &self.nodes[node.right_child]
+                        node = &self.nodes[node.children[1]]
 
                 # Add the leave node
                 indices_ptr[indptr_ptr[i + 1]] = <SIZE_t>(node - self.nodes)
@@ -1066,10 +1069,10 @@ cdef class Tree:
 
         with nogil:
             while node != end_node:
-                if node.left_child != _TREE_LEAF:
+                if node.children[0] != _TREE_LEAF:
                     # ... and node.right_child != _TREE_LEAF:
-                    left = &nodes[node.left_child]
-                    right = &nodes[node.right_child]
+                    left = &nodes[node.children[0]]
+                    right = &nodes[node.children[1]]
 
                     importance_data[node.feature] += (
                         node.weighted_n_node_samples * node.impurity -
