@@ -71,7 +71,7 @@ cdef SIZE_t INITIAL_STACK_SIZE = 10
 NODE_DTYPE = np.dtype({
     'names': ['children', 'n_children', 'feature', 'threshold', 'impurity',
               'n_node_samples', 'weighted_n_node_samples'],
-    'formats': [np.ndarray, np.intp, np.intp, np.float64, np.float64, np.intp,
+    'formats': [np.intp, np.intp, np.intp, np.float64, np.float64, np.intp,
                 np.float64],
     'offsets': [
         <Py_ssize_t> &(<Node*> NULL).children,
@@ -566,13 +566,12 @@ cdef class Tree:
         def __get__(self):
             return sizet_ptr_to_ndarray(self.n_classes, self.n_outputs)
 
-    property children_left:
+    property children:
         def __get__(self):
-            return self._get_node_ndarray()['left_child'][:self.node_count]
-
-    property children_right:
-        def __get__(self):
-            return self._get_node_ndarray()['right_child'][:self.node_count]
+            l = []
+            for i in range(self.node_count):
+                l.append(self._get_children_ndarray(i))
+            return l
 
     property n_leaves:
         def __get__(self):
@@ -632,6 +631,8 @@ cdef class Tree:
         # Free all inner structures
         free(self.n_classes)
         free(self.value)
+        for i in range(self.node_count):
+            free(self.nodes[i].children)
         free(self.nodes)
 
     def __reduce__(self):
@@ -761,7 +762,7 @@ cdef class Tree:
             node.threshold = _TREE_UNDEFINED
 
         else:
-            # left_child and right_child will be set later
+            # children[0] and children[1] will be set later
             node.feature = feature
             node.threshold = threshold
 
@@ -812,7 +813,7 @@ cdef class Tree:
                 node = self.nodes
                 # While node not a leaf
                 while node.children[0] != _TREE_LEAF:
-                    # ... and node.right_child != _TREE_LEAF:
+                    # ... and node.children[1] != _TREE_LEAF:
                     if X_ndarray[i, node.feature] <= node.threshold:
                         node = &self.nodes[node.children[0]]
                     else:
@@ -877,7 +878,7 @@ cdef class Tree:
 
                 # While node not a leaf
                 while node.children[0] != _TREE_LEAF:
-                    # ... and node.right_child != _TREE_LEAF:
+                    # ... and node.children[1] != _TREE_LEAF:
                     if feature_to_sample[node.feature] == i:
                         feature_value = X_sample[node.feature]
 
@@ -939,7 +940,7 @@ cdef class Tree:
 
                 # Add all external nodes
                 while node.children[0] != _TREE_LEAF:
-                    # ... and node.right_child != _TREE_LEAF:
+                    # ... and node.children[1] != _TREE_LEAF:
                     indices_ptr[indptr_ptr[i + 1]] = <SIZE_t>(node - self.nodes)
                     indptr_ptr[i + 1] += 1
 
@@ -1020,7 +1021,7 @@ cdef class Tree:
 
                 # While node not a leaf
                 while node.children[0] != _TREE_LEAF:
-                    # ... and node.right_child != _TREE_LEAF:
+                    # ... and node.children[1] != _TREE_LEAF:
 
                     indices_ptr[indptr_ptr[i + 1]] = <SIZE_t>(node - self.nodes)
                     indptr_ptr[i + 1] += 1
@@ -1070,7 +1071,7 @@ cdef class Tree:
         with nogil:
             while node != end_node:
                 if node.children[0] != _TREE_LEAF:
-                    # ... and node.right_child != _TREE_LEAF:
+                    # ... and node.children[1] != _TREE_LEAF:
                     left = &nodes[node.children[0]]
                     right = &nodes[node.children[1]]
 
@@ -1125,6 +1126,18 @@ cdef class Tree:
                                    np.NPY_DEFAULT, None)
         Py_INCREF(self)
         arr.base = <PyObject*> self
+        return arr
+
+    cdef np.ndarray _get_children_ndarray(self, SIZE_t node):
+
+        cdef np.npy_intp shape[1]
+        shape[0] = <np.npy_intp> self.nodes[node].n_children
+        cdef np.npy_intp strides[1]
+        strides[0] = sizeof(np.intp)
+        cdef np.ndarray arr
+        arr = PyArray_NewFromDescr(np.ndarray, np.dtype(np.intp), 1, shape,
+                                   strides, <void*> self.nodes[node].children,
+                                   np.NPY_DEFAULT, None)
         return arr
 
 
@@ -1187,7 +1200,7 @@ cdef class Tree:
                 current_node_idx = node_idx_stack[stack_size]
                 current_node = &self.nodes[current_node_idx]
 
-                if current_node.left_child == _TREE_LEAF:
+                if current_node.children[0] == _TREE_LEAF:
                     # leaf node
                     out[sample_idx] += (weight_stack[stack_size] *
                                         self.value[current_node_idx])
@@ -1205,9 +1218,9 @@ cdef class Tree:
                     if is_target_feature:
                         # In this case, we push left or right child on stack
                         if X[sample_idx, feature_idx] <= current_node.threshold:
-                            node_idx_stack[stack_size] = current_node.left_child
+                            node_idx_stack[stack_size] = current_node.children[0]
                         else:
-                            node_idx_stack[stack_size] = current_node.right_child
+                            node_idx_stack[stack_size] = current_node.children[1]
                         stack_size += 1
                     else:
                         # In this case, we push both children onto the stack,
@@ -1215,16 +1228,16 @@ cdef class Tree:
                         # samples going through each branch.
 
                         # push left child
-                        node_idx_stack[stack_size] = current_node.left_child
+                        node_idx_stack[stack_size] = current_node.children[0]
                         left_sample_frac = (
-                            self.nodes[current_node.left_child].weighted_n_node_samples /
+                            self.nodes[current_node.children[0]].weighted_n_node_samples /
                             current_node.weighted_n_node_samples)
                         current_weight = weight_stack[stack_size]
                         weight_stack[stack_size] = current_weight * left_sample_frac
                         stack_size += 1
 
                         # push right child
-                        node_idx_stack[stack_size] = current_node.right_child
+                        node_idx_stack[stack_size] = current_node.children[1]
                         weight_stack[stack_size] = (
                             current_weight * (1 - left_sample_frac))
                         stack_size += 1

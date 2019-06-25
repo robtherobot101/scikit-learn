@@ -65,6 +65,7 @@ cdef class Tree:
 
     cdef np.ndarray _get_value_ndarray(self)
     cdef np.ndarray _get_node_ndarray(self)
+    cdef np.ndarray _get_children_ndarray(self, SIZE_t node)
 
     cpdef np.ndarray predict(self, object X)
 
