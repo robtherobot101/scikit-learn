@@ -1136,7 +1136,7 @@ cdef class Tree:
         cdef np.npy_intp strides[1]
         strides[0] = sizeof(np.intp)
         cdef np.ndarray arr
-        arr = PyArray_NewFromDescr(np.ndarray, np.dtype(np.intp), 1, shape,
+        arr = PyArray_NewFromDescr(<PyTypeObject *> np.ndarray, np.dtype(np.intp), 1, shape,
                                    strides, <void*> self.nodes[node].children,
                                    np.NPY_DEFAULT, None)
         return arr
