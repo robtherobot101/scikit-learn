@@ -23,11 +23,14 @@ from math import ceil
 import numpy as np
 from scipy.sparse import issparse
 
+from sklearn.compose import make_column_transformer
 from ..base import BaseEstimator
 from ..base import ClassifierMixin
 from ..base import RegressorMixin
 from ..base import is_classifier
 from ..base import MultiOutputMixin
+from ..compose import ColumnTransformer
+from ..preprocessing import OrdinalEncoder
 from ..utils import check_array
 from ..utils import check_random_state
 from ..utils import compute_sample_weight
@@ -121,9 +124,18 @@ class BaseDecisionTree(BaseEstimator, MultiOutputMixin, metaclass=ABCMeta):
         return self.tree_.n_leaves
 
     def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted=None):
+            X_idx_sorted=None, feature_mask=None):
 
         random_state = check_random_state(self.random_state)
+
+        if feature_mask is not None:
+            # TODO Every column (including numerical) is currently encoded!
+            self.oe = OrdinalEncoder()
+            self.oe.fit(X, y)
+
+            ct = make_column_transformer((self.oe, feature_mask), remainder='passthrough')
+            X = ct.fit_transform(X, y)
+
         if check_input:
             X = check_array(X, dtype=DTYPE, accept_sparse="csc")
             y = check_array(y, ensure_2d=False, dtype=None)
@@ -772,7 +784,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             presort=presort)
 
     def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted=None):
+            X_idx_sorted=None, feature_mask=None):
         """Build a decision tree classifier from the training set (X, y).
 
         Parameters
@@ -811,7 +823,8 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             X, y,
             sample_weight=sample_weight,
             check_input=check_input,
-            X_idx_sorted=X_idx_sorted)
+            X_idx_sorted=X_idx_sorted,
+            feature_mask=feature_mask)
         return self
 
     def predict_proba(self, X, check_input=True):
@@ -1114,7 +1127,7 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
             presort=presort)
 
     def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted=None):
+            X_idx_sorted=None, feature_mask=None):
         """Build a decision tree regressor from the training set (X, y).
 
         Parameters
@@ -1152,7 +1165,8 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
             X, y,
             sample_weight=sample_weight,
             check_input=check_input,
-            X_idx_sorted=X_idx_sorted)
+            X_idx_sorted=X_idx_sorted,
+            feature_mask=feature_mask)
         return self
 
 
