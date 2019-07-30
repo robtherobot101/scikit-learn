@@ -264,7 +264,7 @@ class _BaseTreeExporter(object):
             node_string += characters[0] + str(node_id) + characters[4]
 
         # Write decision criteria
-        if tree.children_left[node_id] != _tree.TREE_LEAF:
+        if tree.children[node_id][0] != _tree.TREE_LEAF:
             # Always write node decision criteria, except for leaves
             if self.feature_names is not None:
                 feature = self.feature_names[tree.feature[node_id]]
@@ -449,14 +449,13 @@ class _DOTTreeExporter(_BaseTreeExporter):
         if node_id == _tree.TREE_LEAF:
             raise ValueError("Invalid node_id %s" % _tree.TREE_LEAF)
 
-        left_child = tree.children_left[node_id]
-        right_child = tree.children_right[node_id]
+        children = tree.children[node_id]
 
         # Add node with description
         if self.max_depth is None or depth <= self.max_depth:
 
             # Collect ranks for 'leaf' option in plot_options
-            if left_child == _tree.TREE_LEAF:
+            if children[0] == _tree.TREE_LEAF:
                 self.ranks['leaves'].append(str(node_id))
             elif str(depth) not in self.ranks:
                 self.ranks[str(depth)] = [str(node_id)]
@@ -487,11 +486,10 @@ class _DOTTreeExporter(_BaseTreeExporter):
                                             angles[1])
                 self.out_file.write(' ;\n')
 
-            if left_child != _tree.TREE_LEAF:
-                self.recurse(tree, left_child, criterion=criterion,
-                             parent=node_id, depth=depth + 1)
-                self.recurse(tree, right_child, criterion=criterion,
-                             parent=node_id, depth=depth + 1)
+            if children[0] != _tree.TREE_LEAF:
+                for child in children:
+                    self.recurse(tree, child, criterion=criterion,
+                                 parent=node_id, depth=depth + 1)
 
         else:
             self.ranks['leaves'].append(str(node_id))

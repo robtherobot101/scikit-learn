@@ -128,10 +128,14 @@ class BaseDecisionTree(BaseEstimator, MultiOutputMixin, metaclass=ABCMeta):
 
         random_state = check_random_state(self.random_state)
 
+        cardinalities = np.zeros(len(feature_mask), np.intp)
         if feature_mask is not None:
             # TODO Every column (including numerical) is currently encoded!
             self.oe = OrdinalEncoder()
             self.oe.fit(X, y)
+
+            for i in range(len(feature_mask)):
+                cardinalities[i] = len(self.oe.categories_[i]) if feature_mask[i] else -1
 
             ct = make_column_transformer((self.oe, feature_mask), remainder='passthrough')
             X = ct.fit_transform(X, y)

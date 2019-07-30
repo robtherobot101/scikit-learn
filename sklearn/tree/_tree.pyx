@@ -91,7 +91,7 @@ NODE_DTYPE = np.dtype({
 cdef class TreeBuilder:
     """Interface for different tree building strategies."""
 
-    cpdef build(self, Tree tree, object X, np.ndarray y,
+    cpdef build(self, Tree tree, object X, np.ndarray y, np.ndarray cardinalities,
                 np.ndarray sample_weight=None,
                 np.ndarray X_idx_sorted=None):
         """Build a decision tree from the training set (X, y)."""
@@ -143,7 +143,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         self.min_impurity_decrease = min_impurity_decrease
         self.min_impurity_split = min_impurity_split
 
-    cpdef build(self, Tree tree, object X, np.ndarray y,
+    cpdef build(self, Tree tree, object X, np.ndarray y, np.ndarray cardinalities,
                 np.ndarray sample_weight=None,
                 np.ndarray X_idx_sorted=None):
         """Build a decision tree from the training set (X, y)."""
@@ -313,7 +313,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         self.min_impurity_decrease = min_impurity_decrease
         self.min_impurity_split = min_impurity_split
 
-    cpdef build(self, Tree tree, object X, np.ndarray y,
+    cpdef build(self, Tree tree, object X, np.ndarray y, np.ndarray cardinalities,
                 np.ndarray sample_weight=None,
                 np.ndarray X_idx_sorted=None):
         """Build a decision tree from the training set (X, y)."""
@@ -1139,6 +1139,8 @@ cdef class Tree:
         arr = PyArray_NewFromDescr(<PyTypeObject *> np.ndarray, np.dtype(np.intp), 1, shape,
                                    strides, <void*> self.nodes[node].children,
                                    np.NPY_DEFAULT, None)
+        Py_INCREF(self)
+        arr.base = <PyObject*> self
         return arr
 
 
