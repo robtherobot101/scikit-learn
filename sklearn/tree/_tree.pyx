@@ -256,13 +256,13 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 if not is_leaf:
                     # Push right child on stack
                     rc = stack.push(split.pos, end, depth + 1, node_id, 0,
-                                    split.impurity_right, n_constant_features)
+                                    split.impurities[1], n_constant_features)
                     if rc == -1:
                         break
 
                     # Push left child on stack
                     rc = stack.push(start, split.pos, depth + 1, node_id, 1,
-                                    split.impurity_left, n_constant_features)
+                                    split.impurities[0], n_constant_features)
                     if rc == -1:
                         break
 
@@ -289,7 +289,7 @@ cdef inline int _add_to_frontier(PriorityHeapRecord* rec,
     """
     return frontier.push(rec.node_id, rec.start, rec.end, rec.pos, rec.depth,
                          rec.is_leaf, rec.improvement, rec.impurity,
-                         rec.impurity_left, rec.impurity_right)
+                         rec.impurities[0], rec.impurities[1])
 
 
 cdef class BestFirstTreeBuilder(TreeBuilder):
@@ -385,7 +385,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
                     # Compute left split node
                     rc = self._add_split_node(splitter, tree,
                                               record.start, record.pos,
-                                              record.impurity_left,
+                                              record.impurities[0],
                                               IS_NOT_FIRST, IS_LEFT, node,
                                               record.depth + 1,
                                               &split_node_left)
@@ -398,7 +398,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
                     # Compute right split node
                     rc = self._add_split_node(splitter, tree, record.pos,
                                               record.end,
-                                              record.impurity_right,
+                                              record.impurities[1],
                                               IS_NOT_FIRST, IS_NOT_LEFT, node,
                                               record.depth + 1,
                                               &split_node_right)
@@ -486,16 +486,16 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
             res.pos = split.pos
             res.is_leaf = 0
             res.improvement = split.improvement
-            res.impurity_left = split.impurity_left
-            res.impurity_right = split.impurity_right
+            res.impurities[0] = split.impurities[0]
+            res.impurities[1] = split.impurities[1]
 
         else:
             # is leaf => 0 improvement
             res.pos = end
             res.is_leaf = 1
             res.improvement = 0.0
-            res.impurity_left = impurity
-            res.impurity_right = impurity
+            res.impurities[0] = impurity
+            res.impurities[1] = impurity
 
         return 0
 

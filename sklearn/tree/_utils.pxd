@@ -101,8 +101,7 @@ cdef struct PriorityHeapRecord:
     SIZE_t depth
     bint is_leaf
     double impurity
-    double impurity_left
-    double impurity_right
+    double* impurities
     double improvement
 
 cdef class PriorityHeap:

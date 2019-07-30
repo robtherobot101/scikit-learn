@@ -251,8 +251,8 @@ cdef class PriorityHeap:
         heap[heap_ptr].depth = depth
         heap[heap_ptr].is_leaf = is_leaf
         heap[heap_ptr].impurity = impurity
-        heap[heap_ptr].impurity_left = impurity_left
-        heap[heap_ptr].impurity_right = impurity_right
+        heap[heap_ptr].impurities[0] = impurity_left
+        heap[heap_ptr].impurities[1] = impurity_right
         heap[heap_ptr].improvement = improvement
 
         # Heapify up

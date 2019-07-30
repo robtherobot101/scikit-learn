@@ -391,7 +391,7 @@ class BaseDecisionTree(BaseEstimator, MultiOutputMixin, metaclass=ABCMeta):
                                            self.min_impurity_decrease,
                                            min_impurity_split)
 
-        builder.build(self.tree_, X, y, sample_weight, X_idx_sorted)
+        builder.build(self.tree_, X, y, sample_weight, X_idx_sorted, cardinalities)
 
         if self.n_outputs_ == 1:
             self.n_classes_ = self.n_classes_[0]

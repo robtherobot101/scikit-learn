@@ -28,8 +28,9 @@ cdef struct SplitRecord:
                            # pos is >= end if the node is a leaf.
     double threshold       # Threshold to split at.
     double improvement     # Impurity improvement given parent node.
-    double impurity_left   # Impurity of the left split.
-    double impurity_right  # Impurity of the right split.
+    double* impurities
+    # double impurity_left   # Impurity of the left split.
+    # double impurity_right  # Impurity of the right split.
 
 cdef class Splitter:
     # The splitter searches in the input space for a feature and a threshold

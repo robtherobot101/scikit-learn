@@ -19,6 +19,7 @@ from ._criterion cimport Criterion
 
 from libc.stdlib cimport free
 from libc.stdlib cimport qsort
+from libc.stdlib cimport malloc
 from libc.string cimport memcpy
 from libc.string cimport memset
 
@@ -44,8 +45,9 @@ cdef DTYPE_t FEATURE_THRESHOLD = 1e-7
 cdef DTYPE_t EXTRACT_NNZ_SWITCH = 0.1
 
 cdef inline void _init_split(SplitRecord* self, SIZE_t start_pos) nogil:
-    self.impurity_left = INFINITY
-    self.impurity_right = INFINITY
+    self.impurities = <double*> malloc(2 * sizeof(double))
+    self.impurities[0] = INFINITY
+    self.impurities[1] = INFINITY
     self.pos = start_pos
     self.feature = 0
     self.threshold = 0.
@@ -492,8 +494,8 @@ cdef class BestSplitter(BaseDenseSplitter):
             self.criterion.reset()
             self.criterion.update(best.pos)
             best.improvement = self.criterion.impurity_improvement(impurity)
-            self.criterion.children_impurity(&best.impurity_left,
-                                             &best.impurity_right)
+            self.criterion.children_impurity(&best.impurities[0],
+                                             &best.impurities[1])
 
         # Reset sample mask
         if self.presort == 1:
@@ -825,8 +827,8 @@ cdef class RandomSplitter(BaseDenseSplitter):
             self.criterion.reset()
             self.criterion.update(best.pos)
             best.improvement = self.criterion.impurity_improvement(impurity)
-            self.criterion.children_impurity(&best.impurity_left,
-                                             &best.impurity_right)
+            self.criterion.children_impurity(&best.impurities[0],
+                                             &best.impurities[1])
 
         # Respect invariant for constant features: the original order of
         # element in features[:n_known_constants] must be preserved for sibling
@@ -1382,8 +1384,8 @@ cdef class BestSparseSplitter(BaseSparseSplitter):
             self.criterion.reset()
             self.criterion.update(best.pos)
             best.improvement = self.criterion.impurity_improvement(impurity)
-            self.criterion.children_impurity(&best.impurity_left,
-                                             &best.impurity_right)
+            self.criterion.children_impurity(&best.impurities[0],
+                                             &best.impurities[1])
 
         # Respect invariant for constant features: the original order of
         # element in features[:n_known_constants] must be preserved for sibling
@@ -1597,8 +1599,8 @@ cdef class RandomSparseSplitter(BaseSparseSplitter):
                         best_proxy_improvement = current_proxy_improvement
                         current.improvement = self.criterion.impurity_improvement(impurity)
 
-                        self.criterion.children_impurity(&current.impurity_left,
-                                                         &current.impurity_right)
+                        self.criterion.children_impurity(&current.impurities[0],
+                                                         &current.impurities[1])
                         best = current
 
         # Reorganize into samples[start:best.pos] + samples[best.pos:end]
@@ -1613,8 +1615,8 @@ cdef class RandomSparseSplitter(BaseSparseSplitter):
             self.criterion.reset()
             self.criterion.update(best.pos)
             best.improvement = self.criterion.impurity_improvement(impurity)
-            self.criterion.children_impurity(&best.impurity_left,
-                                             &best.impurity_right)
+            self.criterion.children_impurity(&best.impurities[0],
+                                             &best.impurities[1])
 
         # Respect invariant for constant features: the original order of
         # element in features[:n_known_constants] must be preserved for sibling
