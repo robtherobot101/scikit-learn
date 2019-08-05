@@ -93,6 +93,7 @@ cdef class Splitter:
         self.features = NULL
         self.n_features = 0
         self.feature_values = NULL
+        self.cardinalities = NULL
 
         self.sample_weight = NULL
 
@@ -109,6 +110,7 @@ cdef class Splitter:
         free(self.features)
         free(self.constant_features)
         free(self.feature_values)
+        free(self.cardinalities)
 
     def __getstate__(self):
         return {}
@@ -120,6 +122,7 @@ cdef class Splitter:
                    object X,
                    const DOUBLE_t[:, ::1] y,
                    DOUBLE_t* sample_weight,
+                   np.ndarray cardinalities,
                    np.ndarray X_idx_sorted=None) except -1:
         """Initialize the splitter.
 
@@ -178,6 +181,11 @@ cdef class Splitter:
 
         safe_realloc(&self.feature_values, n_samples)
         safe_realloc(&self.constant_features, n_features)
+
+        cdef SIZE_t* cardinalities_array = safe_realloc(&self.cardinalities, n_features)
+
+        for i in range(n_features):
+            cardinalities_array[i] = cardinalities[i]
 
         self.y = y
 
@@ -264,6 +272,7 @@ cdef class BaseDenseSplitter(Splitter):
                   object X,
                   const DOUBLE_t[:, ::1] y,
                   DOUBLE_t* sample_weight,
+                  np.ndarray cardinalities,
                   np.ndarray X_idx_sorted=None) except -1:
         """Initialize the splitter
 
@@ -272,7 +281,7 @@ cdef class BaseDenseSplitter(Splitter):
         """
 
         # Call parent init
-        Splitter.init(self, X, y, sample_weight)
+        Splitter.init(self, X, y, sample_weight, cardinalities)
 
         self.X = X
 
@@ -880,6 +889,7 @@ cdef class BaseSparseSplitter(Splitter):
                   object X,
                   const DOUBLE_t[:, ::1] y,
                   DOUBLE_t* sample_weight,
+                  np.ndarray cardinalities,
                   np.ndarray X_idx_sorted=None) except -1:
         """Initialize the splitter
 
@@ -887,7 +897,7 @@ cdef class BaseSparseSplitter(Splitter):
         or 0 otherwise.
         """
         # Call parent init
-        Splitter.init(self, X, y, sample_weight)
+        Splitter.init(self, X, y, sample_weight,  cardinalities)
 
         if not isinstance(X, csc_matrix):
             raise ValueError("X should be in csc format")

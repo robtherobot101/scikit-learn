@@ -128,7 +128,7 @@ class BaseDecisionTree(BaseEstimator, MultiOutputMixin, metaclass=ABCMeta):
 
         random_state = check_random_state(self.random_state)
 
-        cardinalities = np.zeros(len(feature_mask), np.intp)
+        cardinalities = np.zeros(len(X[0]), np.intp)
         if feature_mask is not None:
             # TODO Every column (including numerical) is currently encoded!
             self.oe = OrdinalEncoder()
@@ -391,7 +391,7 @@ class BaseDecisionTree(BaseEstimator, MultiOutputMixin, metaclass=ABCMeta):
                                            self.min_impurity_decrease,
                                            min_impurity_split)
 
-        builder.build(self.tree_, X, y, sample_weight, X_idx_sorted, cardinalities)
+        builder.build(self.tree_, X, y, cardinalities, sample_weight, X_idx_sorted)
 
         if self.n_outputs_ == 1:
             self.n_classes_ = self.n_classes_[0]
