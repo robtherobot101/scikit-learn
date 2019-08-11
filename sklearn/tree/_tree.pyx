@@ -186,6 +186,8 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         cdef double weighted_n_samples = splitter.weighted_n_samples
         cdef double weighted_n_node_samples
         cdef SplitRecord split
+        cdef SIZE_t i
+        cdef SIZE_t cardinality
         cdef SIZE_t node_id
 
         cdef double impurity = INFINITY
@@ -241,9 +243,13 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                                (split.improvement + EPSILON <
                                 min_impurity_decrease))
 
+                with gil:
+                    cardinality = cardinalities[split.feature]
+                    print(split.feature, cardinality)
+
                 node_id = tree._add_node(parent, is_left, is_leaf, split.feature,
                                          split.threshold, impurity, n_node_samples,
-                                         weighted_n_node_samples)
+                                         weighted_n_node_samples, cardinality)
 
                 if node_id == <SIZE_t>(-1):
                     rc = -1
@@ -254,17 +260,25 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 splitter.node_value(tree.value + node_id * tree.value_stride)
 
                 if not is_leaf:
-                    # Push right child on stack
-                    rc = stack.push(split.pos, end, depth + 1, node_id, 0,
-                                    split.impurities[1], n_constant_features)
-                    if rc == -1:
-                        break
+                    i = 0
+                    while i < cardinality:
+                        rc = stack.push(split.pos, end, depth + 1, node_id, 0,
+                                        split.impurities[0], n_constant_features)
+                        if rc == -1:
+                            break
 
-                    # Push left child on stack
-                    rc = stack.push(start, split.pos, depth + 1, node_id, 1,
-                                    split.impurities[0], n_constant_features)
-                    if rc == -1:
-                        break
+                        # # Push right child on stack
+                        # rc = stack.push(split.pos, end, depth + 1, node_id, 0,
+                        #                 split.impurities[1], n_constant_features)
+                        # if rc == -1:
+                        #     break
+                        #
+                        # # Push left child on stack
+                        # rc = stack.push(start, split.pos, depth + 1, node_id, 1,
+                        #                 split.impurities[0], n_constant_features)
+                        # if rc == -1:
+                        #     break
+                        i += 1
 
                 if depth > max_depth_seen:
                     max_depth_seen = depth
@@ -468,7 +482,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
                                  else _TREE_UNDEFINED,
                                  is_left, is_leaf,
                                  split.feature, split.threshold, impurity, n_node_samples,
-                                 weighted_n_node_samples)
+                                 weighted_n_node_samples, 2)
         if node_id == <SIZE_t>(-1):
             return -1
 
@@ -729,7 +743,7 @@ cdef class Tree:
     cdef SIZE_t _add_node(self, SIZE_t parent, bint is_left, bint is_leaf,
                           SIZE_t feature, double threshold, double impurity,
                           SIZE_t n_node_samples,
-                          double weighted_n_node_samples) nogil except -1:
+                          double weighted_n_node_samples, SIZE_t n_children) nogil except -1:
         """Add a node to the tree.
 
         The new node registers itself as the child of its parent.
@@ -743,21 +757,25 @@ cdef class Tree:
                 return <SIZE_t>(-1)
 
         cdef Node* node = &self.nodes[node_id]
-        node.n_children = 2
-        node.children = <SIZE_t *>malloc(2 * sizeof(Node))
+        node.n_children = n_children
+        node.children = <SIZE_t *>malloc(n_children * sizeof(Node))
         node.impurity = impurity
         node.n_node_samples = n_node_samples
         node.weighted_n_node_samples = weighted_n_node_samples
 
         if parent != _TREE_UNDEFINED:
-            if is_left:
-                self.nodes[parent].children[0] = node_id
-            else:
-                self.nodes[parent].children[1] = node_id
+            for i in range(n_children):
+                self.nodes[parent].children[i] = node_id
+            # if is_left:
+            #     self.nodes[parent].children[0] = node_id
+            # else:
+            #     self.nodes[parent].children[1] = node_id
 
         if is_leaf:
-            node.children[0] = _TREE_LEAF
-            node.children[1] = _TREE_LEAF
+            for i in range(n_children):
+                node.children[i] = _TREE_LEAF
+            # node.children[0] = _TREE_LEAF
+            # node.children[1] = _TREE_LEAF
             node.feature = _TREE_UNDEFINED
             node.threshold = _TREE_UNDEFINED
 
