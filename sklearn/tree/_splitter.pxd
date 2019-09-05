@@ -23,7 +23,7 @@ from ._tree cimport UINT32_t         # Unsigned 32 bit integer
 cdef struct SplitRecord:
     # Data to track sample split
     SIZE_t feature         # Which feature to split on.
-    SIZE_t pos             # Split samples array at the given position,
+    SIZE_t* pos             # Split samples array at the given position,
                            # i.e. count of samples below threshold for feature.
                            # pos is >= end if the node is a leaf.
     double threshold       # Threshold to split at.

@@ -48,7 +48,8 @@ cdef inline void _init_split(SplitRecord* self, SIZE_t start_pos) nogil:
     self.impurities = <double*> malloc(2 * sizeof(double))
     self.impurities[0] = INFINITY
     self.impurities[1] = INFINITY
-    self.pos = start_pos
+    self.pos = <SIZE_t*> malloc(2 * sizeof(SIZE_t))
+    self.pos[0] = start_pos
     self.feature = 0
     self.threshold = 0.
     self.improvement = -INFINITY
@@ -358,6 +359,7 @@ cdef class BestSplitter(BaseDenseSplitter):
         cdef SIZE_t partition_end
 
         _init_split(&best, end)
+        current.pos = <SIZE_t*> malloc(1 * sizeof(SIZE_t))
 
         if self.presort == 1:
             for p in range(start, end):
@@ -456,14 +458,14 @@ cdef class BestSplitter(BaseDenseSplitter):
                         #                X[samples[p - 1], current.feature])
 
                         if p < end:
-                            current.pos = p
+                            current.pos[0] = p
 
                             # Reject if min_samples_leaf is not guaranteed
-                            if (((current.pos - start) < min_samples_leaf) or
-                                    ((end - current.pos) < min_samples_leaf)):
+                            if (((current.pos[0] - start) < min_samples_leaf) or
+                                    ((end - current.pos[0]) < min_samples_leaf)):
                                 continue
 
-                            self.criterion.update(current.pos)
+                            self.criterion.update(current.pos[0])
 
                             # Reject if min_weight_leaf is not satisfied
                             if ((self.criterion.weighted_n_left < min_weight_leaf) or
@@ -483,9 +485,10 @@ cdef class BestSplitter(BaseDenseSplitter):
                                     current.threshold = Xf[p - 1]
 
                                 best = current  # copy
+                                current.pos = <SIZE_t*> malloc(1 * sizeof(SIZE_t))
 
-        # Reorganize into samples[start:best.pos] + samples[best.pos:end]
-        if best.pos < end:
+        # Reorganize into samples[start:best.pos[0]] + samples[best.pos[0]:end]
+        if best.pos[0] < end:
             partition_end = end
             p = start
 
@@ -501,7 +504,7 @@ cdef class BestSplitter(BaseDenseSplitter):
                     samples[p] = tmp
 
             self.criterion.reset()
-            self.criterion.update(best.pos)
+            self.criterion.update(best.pos[0])
             best.improvement = self.criterion.impurity_improvement(impurity)
             self.criterion.children_impurity(&best.impurities[0],
                                              &best.impurities[1])
@@ -793,16 +796,16 @@ cdef class RandomSplitter(BaseDenseSplitter):
                             samples[partition_end] = samples[p]
                             samples[p] = tmp
 
-                    current.pos = partition_end
+                    current.pos[0] = partition_end
 
                     # Reject if min_samples_leaf is not guaranteed
-                    if (((current.pos - start) < min_samples_leaf) or
-                            ((end - current.pos) < min_samples_leaf)):
+                    if (((current.pos[0] - start) < min_samples_leaf) or
+                            ((end - current.pos[0]) < min_samples_leaf)):
                         continue
 
                     # Evaluate split
                     self.criterion.reset()
-                    self.criterion.update(current.pos)
+                    self.criterion.update(current.pos[0])
 
                     # Reject if min_weight_leaf is not satisfied
                     if ((self.criterion.weighted_n_left < min_weight_leaf) or
@@ -815,8 +818,8 @@ cdef class RandomSplitter(BaseDenseSplitter):
                         best_proxy_improvement = current_proxy_improvement
                         best = current  # copy
 
-        # Reorganize into samples[start:best.pos] + samples[best.pos:end]
-        if best.pos < end:
+        # Reorganize into samples[start:best.pos[0]] + samples[best.pos[0]:end]
+        if best.pos[0] < end:
             if current.feature != best.feature:
                 partition_end = end
                 p = start
@@ -834,7 +837,7 @@ cdef class RandomSplitter(BaseDenseSplitter):
 
 
             self.criterion.reset()
-            self.criterion.update(best.pos)
+            self.criterion.update(best.pos[0])
             best.improvement = self.criterion.impurity_improvement(impurity)
             self.criterion.children_impurity(&best.impurities[0],
                                              &best.impurities[1])
@@ -1355,14 +1358,14 @@ cdef class BestSparseSplitter(BaseSparseSplitter):
 
 
                         if p < end:
-                            current.pos = p
+                            current.pos[0] = p
 
                             # Reject if min_samples_leaf is not guaranteed
-                            if (((current.pos - start) < min_samples_leaf) or
-                                    ((end - current.pos) < min_samples_leaf)):
+                            if (((current.pos[0] - start) < min_samples_leaf) or
+                                    ((end - current.pos[0]) < min_samples_leaf)):
                                 continue
 
-                            self.criterion.update(current.pos)
+                            self.criterion.update(current.pos[0])
 
                             # Reject if min_weight_leaf is not satisfied
                             if ((self.criterion.weighted_n_left < min_weight_leaf) or
@@ -1383,16 +1386,16 @@ cdef class BestSparseSplitter(BaseSparseSplitter):
 
                                 best = current
 
-        # Reorganize into samples[start:best.pos] + samples[best.pos:end]
-        if best.pos < end:
+        # Reorganize into samples[start:best.pos[0]] + samples[best.pos[0]:end]
+        if best.pos[0] < end:
             self.extract_nnz(best.feature, &end_negative, &start_positive,
                              &is_samples_sorted)
 
             self._partition(best.threshold, end_negative, start_positive,
-                            best.pos)
+                            best.pos[0])
 
             self.criterion.reset()
-            self.criterion.update(best.pos)
+            self.criterion.update(best.pos[0])
             best.improvement = self.criterion.impurity_improvement(impurity)
             self.criterion.children_impurity(&best.impurities[0],
                                              &best.impurities[1])
@@ -1583,20 +1586,20 @@ cdef class RandomSparseSplitter(BaseSparseSplitter):
                         current.threshold = min_feature_value
 
                     # Partition
-                    current.pos = self._partition(current.threshold,
+                    current.pos[0] = self._partition(current.threshold,
                                                   end_negative,
                                                   start_positive,
                                                   start_positive +
                                                   (Xf[start_positive] == 0.))
 
                     # Reject if min_samples_leaf is not guaranteed
-                    if (((current.pos - start) < min_samples_leaf) or
-                            ((end - current.pos) < min_samples_leaf)):
+                    if (((current.pos[0] - start) < min_samples_leaf) or
+                            ((end - current.pos[0]) < min_samples_leaf)):
                         continue
 
                     # Evaluate split
                     self.criterion.reset()
-                    self.criterion.update(current.pos)
+                    self.criterion.update(current.pos[0])
 
                     # Reject if min_weight_leaf is not satisfied
                     if ((self.criterion.weighted_n_left < min_weight_leaf) or
@@ -1613,17 +1616,17 @@ cdef class RandomSparseSplitter(BaseSparseSplitter):
                                                          &current.impurities[1])
                         best = current
 
-        # Reorganize into samples[start:best.pos] + samples[best.pos:end]
-        if best.pos < end:
+        # Reorganize into samples[start:best.pos[0]] + samples[best.pos[0]:end]
+        if best.pos[0] < end:
             if current.feature != best.feature:
                 self.extract_nnz(best.feature, &end_negative, &start_positive,
                                  &is_samples_sorted)
 
                 self._partition(best.threshold, end_negative, start_positive,
-                                best.pos)
+                                best.pos[0])
 
             self.criterion.reset()
-            self.criterion.update(best.pos)
+            self.criterion.update(best.pos[0])
             best.improvement = self.criterion.impurity_improvement(impurity)
             self.criterion.children_impurity(&best.impurities[0],
                                              &best.impurities[1])
