@@ -342,8 +342,10 @@ cdef class BestSplitter(BaseDenseSplitter):
         cdef SIZE_t f_j
         cdef SIZE_t tmp
         cdef SIZE_t p
+        cdef SIZE_t q
         cdef SIZE_t feature_idx_offset
         cdef SIZE_t feature_offset
+        cdef SIZE_t cardinality
         cdef SIZE_t i
         cdef SIZE_t j
 
@@ -441,73 +443,114 @@ cdef class BestSplitter(BaseDenseSplitter):
                 else:
                     f_i -= 1
                     features[f_i], features[f_j] = features[f_j], features[f_i]
+                    cardinality = self.cardinalities[features[f_j]]
+                    if cardinality == -1:
+                        # Evaluate all splits
+                        self.criterion.reset()
+                        p = start
 
-                    # Evaluate all splits
-                    self.criterion.reset()
-                    p = start
+                        while p < end:
+                            while (p + 1 < end and
+                                   Xf[p + 1] <= Xf[p] + FEATURE_THRESHOLD):
+                                p += 1
 
-                    while p < end:
-                        while (p + 1 < end and
-                               Xf[p + 1] <= Xf[p] + FEATURE_THRESHOLD):
+                            # (p + 1 >= end) or (X[samples[p + 1], current.feature] >
+                            #                    X[samples[p], current.feature])
                             p += 1
+                            # (p >= end) or (X[samples[p], current.feature] >
+                            #                X[samples[p - 1], current.feature])
 
-                        # (p + 1 >= end) or (X[samples[p + 1], current.feature] >
-                        #                    X[samples[p], current.feature])
-                        p += 1
-                        # (p >= end) or (X[samples[p], current.feature] >
-                        #                X[samples[p - 1], current.feature])
-
-                        if p < end:
-                            current.pos[0] = p
-
-                            # Reject if min_samples_leaf is not guaranteed
-                            if (((current.pos[0] - start) < min_samples_leaf) or
-                                    ((end - current.pos[0]) < min_samples_leaf)):
-                                continue
-
-                            self.criterion.update(current.pos[0])
-
-                            # Reject if min_weight_leaf is not satisfied
-                            if ((self.criterion.weighted_n_left < min_weight_leaf) or
-                                    (self.criterion.weighted_n_right < min_weight_leaf)):
-                                continue
-
-                            current_proxy_improvement = self.criterion.proxy_impurity_improvement()
-
-                            if current_proxy_improvement > best_proxy_improvement:
-                                best_proxy_improvement = current_proxy_improvement
-                                # sum of halves is used to avoid infinite value
-                                current.threshold = Xf[p - 1] / 2.0 + Xf[p] / 2.0
-
-                                if ((current.threshold == Xf[p]) or
-                                    (current.threshold == INFINITY) or
-                                    (current.threshold == -INFINITY)):
-                                    current.threshold = Xf[p - 1]
-
-                                best = current  # copy
+                            if p < end:
                                 current.pos = <SIZE_t*> malloc(1 * sizeof(SIZE_t))
+                                current.pos[0] = p
+
+                                # Reject if min_samples_leaf is not guaranteed
+                                if (((current.pos[0] - start) < min_samples_leaf) or
+                                        ((end - current.pos[0]) < min_samples_leaf)):
+                                    continue
+
+                                self.criterion.update(current.pos[0])
+
+                                # Reject if min_weight_leaf is not satisfied
+                                if ((self.criterion.weighted_n_left < min_weight_leaf) or
+                                        (self.criterion.weighted_n_right < min_weight_leaf)):
+                                    continue
+
+                                current_proxy_improvement = self.criterion.proxy_impurity_improvement()
+
+                                if current_proxy_improvement > best_proxy_improvement:
+                                    best_proxy_improvement = current_proxy_improvement
+                                    # sum of halves is used to avoid infinite value
+                                    current.threshold = Xf[p - 1] / 2.0 + Xf[p] / 2.0
+
+                                    if ((current.threshold == Xf[p]) or
+                                        (current.threshold == INFINITY) or
+                                        (current.threshold == -INFINITY)):
+                                        current.threshold = Xf[p - 1]
+
+                                    best = current  # copy
+
+                    else:
+                        with gil:
+                            print(<long> current.pos)
+                            current.pos = <SIZE_t*> malloc(cardinality - 1 * sizeof(SIZE_t))
+                            print(<long> current.pos)
+                        # Feature is now constant
+                        features[f_j] = features[n_total_constants]
+                        features[n_total_constants] = current.feature
+
+                        n_found_constants += 1
+                        n_total_constants += 1
+
+                        q = 0
+                        for i in range(start + 1, end):
+                            if Xf[i] > Xf[i - 1]:
+                                with gil:
+                                    print("Here", q, <long> current.pos)
+                                current.pos[q] = i
+                                q += 1
+                        with gil:
+                            print(current.feature)
+                            print('\n')
+                            for i in range(cardinality - 1):
+                                print(current.pos[i])
+                        break
+
+
+
 
         # Reorganize into samples[start:best.pos[0]] + samples[best.pos[0]:end]
-        if best.pos[0] < end:
-            partition_end = end
-            p = start
+        cardinality = self.cardinalities[best.feature]
+        if cardinality == -1:
+            if best.pos[0] < end:
+                partition_end = end
+                p = start
 
-            while p < partition_end:
-                if self.X[samples[p], best.feature] <= best.threshold:
-                    p += 1
+                while p < partition_end:
+                    if self.X[samples[p], best.feature] <= best.threshold:
+                        p += 1
 
-                else:
-                    partition_end -= 1
+                    else:
+                        partition_end -= 1
 
-                    tmp = samples[partition_end]
-                    samples[partition_end] = samples[p]
-                    samples[p] = tmp
+                        tmp = samples[partition_end]
+                        samples[partition_end] = samples[p]
+                        samples[p] = tmp
 
-            self.criterion.reset()
-            self.criterion.update(best.pos[0])
-            best.improvement = self.criterion.impurity_improvement(impurity)
-            self.criterion.children_impurity(&best.impurities[0],
-                                             &best.impurities[1])
+                self.criterion.reset()
+                self.criterion.update(best.pos[0])
+                best.improvement = self.criterion.impurity_improvement(impurity)
+                self.criterion.children_impurity(&best.impurities[0],
+                                                 &best.impurities[1])
+        else:
+            for i in range(start, end):
+                Xf[i] = self.X[samples[i], best.feature]
+
+            sort(Xf + start, samples + start, end - start)
+
+            # Calculate children impurities
+            for i in range(cardinality):
+                best.impurities[i] = 0
 
         # Reset sample mask
         if self.presort == 1:

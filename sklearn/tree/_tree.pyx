@@ -63,6 +63,9 @@ cdef int IS_NOT_LEFT = 0
 
 TREE_LEAF = -1
 TREE_UNDEFINED = -2
+NUMERICAL = -1
+
+cdef SIZE_t _NUMERICAL = NUMERICAL
 cdef SIZE_t _TREE_LEAF = TREE_LEAF
 cdef SIZE_t _TREE_UNDEFINED = TREE_UNDEFINED
 cdef SIZE_t INITIAL_STACK_SIZE = 10
@@ -242,10 +245,6 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     is_leaf = (is_leaf or split.pos[0] >= end or
                                (split.improvement + EPSILON <
                                 min_impurity_decrease))
-
-                with gil:
-                    cardinality = cardinalities[split.feature]
-                    print(split.feature, cardinality)
 
                 node_id = tree._add_node(parent, is_left, is_leaf, split.feature,
                                          split.threshold, impurity, n_node_samples,

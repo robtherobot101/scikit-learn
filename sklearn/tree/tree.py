@@ -136,7 +136,7 @@ class BaseDecisionTree(BaseEstimator, MultiOutputMixin, metaclass=ABCMeta):
 
             cardinalities = np.zeros(len(feature_mask), np.intp)
             for i in range(len(feature_mask)):
-                cardinalities[i] = len(self.oe.categories_[i]) if feature_mask[i] else 2
+                cardinalities[i] = len(self.oe.categories_[i]) if feature_mask[i] else -1
 
             ct = make_column_transformer((self.oe, feature_mask), remainder='passthrough')
             X = ct.fit_transform(X, y)
