@@ -236,7 +236,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     # If EPSILON=0 in the below comparison, float precision
                     # issues stop splitting, producing trees that are
                     # dissimilar to v0.18
-                    is_leaf = (is_leaf or split.pos >= end or
+                    is_leaf = (is_leaf or split.pos[0] >= end or
                                (split.improvement + EPSILON <
                                 min_impurity_decrease))
 
@@ -254,13 +254,13 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
                 if not is_leaf:
                     # Push right child on stack
-                    rc = stack.push(split.pos, end, depth + 1, node_id, 0,
+                    rc = stack.push(split.pos[0], end, depth + 1, node_id, 0,
                                     split.impurity_right, n_constant_features)
                     if rc == -1:
                         break
 
                     # Push left child on stack
-                    rc = stack.push(start, split.pos, depth + 1, node_id, 1,
+                    rc = stack.push(start, split.pos[0], depth + 1, node_id, 1,
                                     split.impurity_left, n_constant_features)
                     if rc == -1:
                         break
@@ -459,7 +459,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
             splitter.node_split(impurity, &split, &n_constant_features)
             # If EPSILON=0 in the below comparison, float precision issues stop
             # splitting early, producing trees that are dissimilar to v0.18
-            is_leaf = (is_leaf or split.pos >= end or
+            is_leaf = (is_leaf or split.pos[0] >= end or
                        split.improvement + EPSILON < min_impurity_decrease)
 
         node_id = tree._add_node(parent - tree.nodes
@@ -482,7 +482,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
 
         if not is_leaf:
             # is split node
-            res.pos = split.pos
+            res.pos = split.pos[0]
             res.is_leaf = 0
             res.improvement = split.improvement
             res.impurity_left = split.impurity_left
