@@ -266,6 +266,8 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 if not is_leaf:
                     i = 0
                     while i < cardinality:
+                        with gil:
+                            print(split.feature)
                         rc = stack.push(split.pos[0], end, depth + 1, node_id, i,
                                         split.impurities[0], n_constant_features)
                         if rc == -1:

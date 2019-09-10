@@ -182,7 +182,7 @@ class _BaseTreeExporter(object):
                  class_names=None, label='all', filled=False,
                  impurity=True, node_ids=False,
                  proportion=False, rotate=False, rounded=False,
-                 precision=3, fontsize=None):
+                 precision=3, fontsize=None, categories=None):
         self.max_depth = max_depth
         self.feature_names = feature_names
         self.class_names = class_names
@@ -195,6 +195,7 @@ class _BaseTreeExporter(object):
         self.rounded = rounded
         self.precision = precision
         self.fontsize = fontsize
+        self.categories = categories
 
     def get_color(self, value):
         # Find the appropriate color & intensity for a node
@@ -354,7 +355,7 @@ class _DOTTreeExporter(_BaseTreeExporter):
                  feature_names=None, class_names=None, label='all',
                  filled=False, leaves_parallel=False, impurity=True,
                  node_ids=False, proportion=False, rotate=False, rounded=False,
-                 special_characters=False, precision=3):
+                 special_characters=False, precision=3, categories=None):
 
         super().__init__(
             max_depth=max_depth, feature_names=feature_names,
@@ -362,7 +363,7 @@ class _DOTTreeExporter(_BaseTreeExporter):
             impurity=impurity,
             node_ids=node_ids, proportion=proportion, rotate=rotate,
             rounded=rounded,
-            precision=precision)
+            precision=precision, categories=categories)
         self.leaves_parallel = leaves_parallel
         self.out_file = out_file
         self.special_characters = special_characters
@@ -478,12 +479,13 @@ class _DOTTreeExporter(_BaseTreeExporter):
                     # Draw True/False labels if parent is root node
                     angles = np.array([45, -45]) * ((self.rotate - .5) * -2)
                     self.out_file.write(' [labeldistance=2.5, labelangle=')
+                    label = self.categories[tree.feature[parent]][node_id - 1]
                     if node_id == 1:
-                        self.out_file.write('%d, headlabel="True"]' %
-                                            angles[0])
+                        self.out_file.write('%d, headlabel="%s"]' %
+                                            (angles[0], label))
                     else:
-                        self.out_file.write('%d, headlabel="False"]' %
-                                            angles[1])
+                        self.out_file.write('%d, headlabel="%s"]' %
+                                            (angles[1], label))
                 self.out_file.write(' ;\n')
 
             if children[0] != _tree.TREE_LEAF:
@@ -643,7 +645,7 @@ def export_graphviz(decision_tree, out_file=None, max_depth=None,
                     feature_names=None, class_names=None, label='all',
                     filled=False, leaves_parallel=False, impurity=True,
                     node_ids=False, proportion=False, rotate=False,
-                    rounded=False, special_characters=False, precision=3):
+                    rounded=False, special_characters=False, precision=3, categories=None):
     """Export a decision tree in DOT format.
 
     This function generates a GraphViz representation of the decision tree,
@@ -759,7 +761,7 @@ def export_graphviz(decision_tree, out_file=None, max_depth=None,
             filled=filled, leaves_parallel=leaves_parallel, impurity=impurity,
             node_ids=node_ids, proportion=proportion, rotate=rotate,
             rounded=rounded, special_characters=special_characters,
-            precision=precision)
+            precision=precision, categories=categories)
         exporter.export(decision_tree)
 
         if return_string:
