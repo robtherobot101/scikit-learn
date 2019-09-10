@@ -56,7 +56,7 @@ cdef class Tree:
     cdef SIZE_t value_stride             # = n_outputs * max_n_classes
 
     # Methods
-    cdef SIZE_t _add_node(self, SIZE_t parent, bint is_left, bint is_leaf,
+    cdef SIZE_t _add_node(self, SIZE_t parent, SIZE_t child_n, bint is_leaf,
                           SIZE_t feature, double threshold, double impurity,
                           SIZE_t n_node_samples,
                           double weighted_n_samples, SIZE_t n_children) nogil except -1

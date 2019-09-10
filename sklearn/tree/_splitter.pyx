@@ -111,7 +111,6 @@ cdef class Splitter:
         free(self.features)
         free(self.constant_features)
         free(self.feature_values)
-        free(self.cardinalities)
 
     def __getstate__(self):
         return {}
@@ -123,7 +122,7 @@ cdef class Splitter:
                    object X,
                    const DOUBLE_t[:, ::1] y,
                    DOUBLE_t* sample_weight,
-                   np.ndarray cardinalities,
+                   SIZE_t* cardinalities,
                    np.ndarray X_idx_sorted=None) except -1:
         """Initialize the splitter.
 
@@ -183,10 +182,7 @@ cdef class Splitter:
         safe_realloc(&self.feature_values, n_samples)
         safe_realloc(&self.constant_features, n_features)
 
-        cdef SIZE_t* cardinalities_array = safe_realloc(&self.cardinalities, n_features)
-
-        for i in range(n_features):
-            cardinalities_array[i] = cardinalities[i]
+        self.cardinalities = cardinalities
 
         self.y = y
 
@@ -273,7 +269,7 @@ cdef class BaseDenseSplitter(Splitter):
                   object X,
                   const DOUBLE_t[:, ::1] y,
                   DOUBLE_t* sample_weight,
-                  np.ndarray cardinalities,
+                  SIZE_t* cardinalities,
                   np.ndarray X_idx_sorted=None) except -1:
         """Initialize the splitter
 
@@ -491,10 +487,7 @@ cdef class BestSplitter(BaseDenseSplitter):
                                     best = current  # copy
 
                     else:
-                        with gil:
-                            print(<long> current.pos)
-                            current.pos = <SIZE_t*> malloc(cardinality - 1 * sizeof(SIZE_t))
-                            print(<long> current.pos)
+                        current.pos = <SIZE_t*> malloc((cardinality - 1) * sizeof(SIZE_t))
                         # Feature is now constant
                         features[f_j] = features[n_total_constants]
                         features[n_total_constants] = current.feature
@@ -505,15 +498,9 @@ cdef class BestSplitter(BaseDenseSplitter):
                         q = 0
                         for i in range(start + 1, end):
                             if Xf[i] > Xf[i - 1]:
-                                with gil:
-                                    print("Here", q, <long> current.pos)
                                 current.pos[q] = i
                                 q += 1
-                        with gil:
-                            print(current.feature)
-                            print('\n')
-                            for i in range(cardinality - 1):
-                                print(current.pos[i])
+                        best = current  # copy
                         break
 
 
@@ -551,6 +538,7 @@ cdef class BestSplitter(BaseDenseSplitter):
             # Calculate children impurities
             for i in range(cardinality):
                 best.impurities[i] = 0
+            best.improvement = 0.5
 
         # Reset sample mask
         if self.presort == 1:
@@ -935,7 +923,7 @@ cdef class BaseSparseSplitter(Splitter):
                   object X,
                   const DOUBLE_t[:, ::1] y,
                   DOUBLE_t* sample_weight,
-                  np.ndarray cardinalities,
+                  SIZE_t* cardinalities,
                   np.ndarray X_idx_sorted=None) except -1:
         """Initialize the splitter
 
