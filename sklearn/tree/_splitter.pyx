@@ -357,7 +357,7 @@ cdef class BestSplitter(BaseDenseSplitter):
         cdef SIZE_t partition_end
 
         _init_split(&best, end)
-        current.pos = <SIZE_t*> malloc(1 * sizeof(SIZE_t))
+        _init_split(&current, end)
 
         if self.presort == 1:
             for p in range(start, end):
@@ -439,7 +439,7 @@ cdef class BestSplitter(BaseDenseSplitter):
                 else:
                     f_i -= 1
                     features[f_i], features[f_j] = features[f_j], features[f_i]
-                    cardinality = self.cardinalities[features[f_j]]
+                    cardinality = self.cardinalities[current.feature]
                     if cardinality == -1:
                         # Evaluate all splits
                         self.criterion.reset()
@@ -457,6 +457,8 @@ cdef class BestSplitter(BaseDenseSplitter):
                             #                X[samples[p - 1], current.feature])
 
                             if p < end:
+                                if current.pos != best.pos:
+                                    free(current.pos)
                                 current.pos = <SIZE_t*> malloc(1 * sizeof(SIZE_t))
                                 current.pos[0] = p
 
@@ -487,6 +489,8 @@ cdef class BestSplitter(BaseDenseSplitter):
                                     best = current  # copy
 
                     else:
+                        if current.pos != best.pos:
+                            free(current.pos)
                         current.pos = <SIZE_t*> malloc((cardinality - 1) * sizeof(SIZE_t))
                         # Feature is now constant
                         features[f_j] = features[n_total_constants]
@@ -501,7 +505,7 @@ cdef class BestSplitter(BaseDenseSplitter):
                                 current.pos[q] = i
                                 q += 1
                         best = current  # copy
-                        break
+
 
 
 
@@ -537,7 +541,7 @@ cdef class BestSplitter(BaseDenseSplitter):
 
             # Calculate children impurities
             for i in range(cardinality):
-                best.impurities[i] = 0
+                best.impurities[i] = 0.5
             best.improvement = 0.5
 
         # Reset sample mask

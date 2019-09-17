@@ -479,7 +479,8 @@ class _DOTTreeExporter(_BaseTreeExporter):
                     # Draw True/False labels if parent is root node
                     angles = np.array([45, -45]) * ((self.rotate - .5) * -2)
                     self.out_file.write(' [labeldistance=2.5, labelangle=')
-                    label = self.categories[tree.feature[parent]][node_id - 1]
+                    # label = self.categories[tree.feature[parent]][node_id - 1]
+                    label = "label"
                     if node_id == 1:
                         self.out_file.write('%d, headlabel="%s"]' %
                                             (angles[0], label))

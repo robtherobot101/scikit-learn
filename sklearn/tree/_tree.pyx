@@ -243,7 +243,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
                 if not is_leaf:
                     splitter.node_split(impurity, &split, &n_constant_features)
-                    cardinality = cardinalities_array[split.feature]
+                    cardinality = 2 if cardinalities_array[split.feature] == -1 else cardinalities_array[split.feature]
                     # If EPSILON=0 in the below comparison, float precision
                     # issues stop splitting, producing trees that are
                     # dissimilar to v0.18
@@ -266,8 +266,6 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 if not is_leaf:
                     i = 0
                     while i < cardinality:
-                        with gil:
-                            print(split.feature)
                         rc = stack.push(split.pos[0], end, depth + 1, node_id, i,
                                         split.impurities[0], n_constant_features)
                         if rc == -1:
@@ -452,6 +450,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
 
         if rc == -1:
             raise MemoryError()
+        free(cardinalities_array)
 
     cdef inline int _add_split_node(self, Splitter splitter, Tree tree,
                                     SIZE_t start, SIZE_t end, double impurity,
@@ -1165,6 +1164,7 @@ cdef class Tree:
         shape[0] = <np.npy_intp> self.nodes[node].n_children
         cdef np.npy_intp strides[1]
         strides[0] = sizeof(np.intp)
+        Py_INCREF(NODE_DTYPE)
         cdef np.ndarray arr
         arr = PyArray_NewFromDescr(<PyTypeObject *> np.ndarray, np.dtype(np.intp), 1, shape,
                                    strides, <void*> self.nodes[node].children,
