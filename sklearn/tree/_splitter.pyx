@@ -440,7 +440,12 @@ cdef class BestSplitter(BaseDenseSplitter):
                     f_i -= 1
                     features[f_i], features[f_j] = features[f_j], features[f_i]
                     cardinality = self.cardinalities[current.feature]
+                    if current.pos != best.pos:
+                        free(current.pos)
+                        free(current.impurities)
                     if cardinality == -1:
+                        current.pos = <SIZE_t*> malloc(1 * sizeof(SIZE_t))
+                        current.impurities = <double*> malloc(2 * sizeof(double))
                         # Evaluate all splits
                         self.criterion.reset()
                         p = start
@@ -457,9 +462,6 @@ cdef class BestSplitter(BaseDenseSplitter):
                             #                X[samples[p - 1], current.feature])
 
                             if p < end:
-                                if current.pos != best.pos:
-                                    free(current.pos)
-                                current.pos = <SIZE_t*> malloc(1 * sizeof(SIZE_t))
                                 current.pos[0] = p
 
                                 # Reject if min_samples_leaf is not guaranteed
@@ -485,13 +487,13 @@ cdef class BestSplitter(BaseDenseSplitter):
                                         (current.threshold == INFINITY) or
                                         (current.threshold == -INFINITY)):
                                         current.threshold = Xf[p - 1]
-
+                                    free(best.pos)
+                                    free(best.impurities)
                                     best = current  # copy
 
                     else:
-                        if current.pos != best.pos:
-                            free(current.pos)
                         current.pos = <SIZE_t*> malloc((cardinality - 1) * sizeof(SIZE_t))
+                        current.impurities = <double*> malloc(cardinality * sizeof(double))
                         # Feature is now constant
                         features[f_j] = features[n_total_constants]
                         features[n_total_constants] = current.feature
@@ -504,6 +506,8 @@ cdef class BestSplitter(BaseDenseSplitter):
                             if Xf[i] > Xf[i - 1]:
                                 current.pos[q] = i
                                 q += 1
+                        free(best.pos)
+                        free(best.impurities)
                         best = current  # copy
 
 
