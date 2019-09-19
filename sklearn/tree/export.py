@@ -215,6 +215,8 @@ class _BaseTreeExporter(object):
                      (self.colors['bounds'][1] - self.colors['bounds'][0]))
         # unpack numpy scalars
         alpha = float(alpha)
+        from math import isnan
+        alpha = 0 if isnan(alpha) else alpha
         # compute the color as alpha against white
         color = [int(round(alpha * c + (1 - alpha) * 255, 0)) for c in color]
         # Return html color code in #RRGGBB format
@@ -548,12 +550,16 @@ class _MPLTreeExporter(_BaseTreeExporter):
         # traverses _tree.Tree recursively, builds intermediate
         # "_reingold_tilford.Tree" object
         name = self.node_to_str(et, node_id, criterion=criterion)
-        if (et.children_left[node_id] != _tree.TREE_LEAF
+        if (et.children[node_id][0] != _tree.TREE_LEAF
                 and (self.max_depth is None or depth <= self.max_depth)):
-            children = [self._make_tree(et.children_left[node_id], et,
-                                        criterion, depth=depth + 1),
-                        self._make_tree(et.children_right[node_id], et,
-                                        criterion, depth=depth + 1)]
+            children = []
+            for child in et.children[node_id]:
+                children.append(self._make_tree(child, et,
+                                        criterion, depth=depth + 1))
+            # children = [self._make_tree(et.children_left[node_id], et,
+            #                             criterion, depth=depth + 1),
+            #             self._make_tree(et.children_right[node_id], et,
+            #                             criterion, depth=depth + 1)]
         else:
             return Tree(name, node_id)
         return Tree(name, node_id, *children)

@@ -250,7 +250,6 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     is_leaf = (is_leaf or split.pos[0] >= end or
                                (split.improvement + EPSILON <
                                 min_impurity_decrease))
-
                 node_id = tree._add_node(parent, stack_record.child_n, is_leaf, split.feature,
                                          split.threshold, impurity, n_node_samples,
                                          weighted_n_node_samples, cardinality)
@@ -270,13 +269,13 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                         break
                     i = 0
                     while i < cardinality - 2:
-                        rc = stack.push(split.pos[i], split.pos[i+1], depth + 1, node_id, i,
+                        rc = stack.push(split.pos[i], split.pos[i+1], depth + 1, node_id, i+1,
                                         split.impurities[i+1], n_constant_features)
                         if rc == -1:
                             break
                         i += 1
-                    rc = stack.push(split.pos[i], end, depth + 1, node_id, i,
-                                    split.impurities[i], n_constant_features)
+                    rc = stack.push(split.pos[i], end, depth + 1, node_id, i+1,
+                                    split.impurities[i+1], n_constant_features)
                     if rc == -1:
                         break
 

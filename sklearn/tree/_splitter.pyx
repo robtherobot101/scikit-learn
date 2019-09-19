@@ -440,17 +440,17 @@ cdef class BestSplitter(BaseDenseSplitter):
                     f_i -= 1
                     features[f_i], features[f_j] = features[f_j], features[f_i]
                     cardinality = self.cardinalities[current.feature]
-                    if current.pos != best.pos:
-                        free(current.pos)
-                        free(current.impurities)
                     if cardinality == -1:
-                        current.pos = <SIZE_t*> malloc(1 * sizeof(SIZE_t))
-                        current.impurities = <double*> malloc(2 * sizeof(double))
                         # Evaluate all splits
                         self.criterion.reset()
                         p = start
 
                         while p < end:
+                            if current.pos != best.pos:
+                                free(current.pos)
+                                free(current.impurities)
+                            current.pos = <SIZE_t*> malloc(1 * sizeof(SIZE_t))
+                            current.impurities = <double*> malloc(2 * sizeof(double))
                             while (p + 1 < end and
                                    Xf[p + 1] <= Xf[p] + FEATURE_THRESHOLD):
                                 p += 1
