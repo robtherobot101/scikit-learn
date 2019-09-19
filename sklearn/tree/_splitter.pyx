@@ -487,8 +487,9 @@ cdef class BestSplitter(BaseDenseSplitter):
                                         (current.threshold == INFINITY) or
                                         (current.threshold == -INFINITY)):
                                         current.threshold = Xf[p - 1]
-                                    free(best.pos)
-                                    free(best.impurities)
+                                    if best.pos != current.pos:
+                                        free(best.pos)
+                                        free(best.impurities)
                                     best = current  # copy
 
                     else:
