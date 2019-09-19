@@ -128,8 +128,11 @@ class BaseDecisionTree(BaseEstimator, MultiOutputMixin, metaclass=ABCMeta):
 
         random_state = check_random_state(self.random_state)
 
-        cardinalities = None
-        if feature_mask is not None:
+        if feature_mask is None:
+            cardinalities = np.zeros(len(X[0]), np.intp)
+            for i in range(len(X[0])):
+                cardinalities[i] = -1
+        else:
             # TODO Every column (including numerical) is currently encoded!
             self.oe = OrdinalEncoder()
             self.oe.fit(X, y)
