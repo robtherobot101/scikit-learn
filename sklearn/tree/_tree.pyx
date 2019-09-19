@@ -264,25 +264,21 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 splitter.node_value(tree.value + node_id * tree.value_stride)
 
                 if not is_leaf:
+                    rc = stack.push(start, split.pos[0], depth + 1, node_id, 0,
+                                    split.impurities[0], n_constant_features)
+                    if rc == -1:
+                        break
                     i = 0
-                    while i < cardinality:
-                        rc = stack.push(split.pos[0], end, depth + 1, node_id, i,
-                                        split.impurities[0], n_constant_features)
+                    while i < cardinality - 2:
+                        rc = stack.push(split.pos[i], split.pos[i+1], depth + 1, node_id, i,
+                                        split.impurities[i+1], n_constant_features)
                         if rc == -1:
                             break
-
-                        # # Push right child on stack
-                        # rc = stack.push(split.pos, end, depth + 1, node_id, 0,
-                        #                 split.impurities[1], n_constant_features)
-                        # if rc == -1:
-                        #     break
-                        #
-                        # # Push left child on stack
-                        # rc = stack.push(start, split.pos, depth + 1, node_id, 1,
-                        #                 split.impurities[0], n_constant_features)
-                        # if rc == -1:
-                        #     break
                         i += 1
+                    rc = stack.push(split.pos[i], end, depth + 1, node_id, i,
+                                    split.impurities[i], n_constant_features)
+                    if rc == -1:
+                        break
 
                 if depth > max_depth_seen:
                     max_depth_seen = depth
