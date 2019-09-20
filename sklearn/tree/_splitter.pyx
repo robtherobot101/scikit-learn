@@ -344,6 +344,7 @@ cdef class BestSplitter(BaseDenseSplitter):
         cdef SIZE_t cardinality
         cdef SIZE_t i
         cdef SIZE_t j
+        cdef double k
 
         cdef SIZE_t n_visited_features = 0
         # Number of features discovered to be constant during the split search
@@ -493,6 +494,9 @@ cdef class BestSplitter(BaseDenseSplitter):
                                     best = current  # copy
 
                     else:
+                        if current.pos != best.pos:
+                            free(current.pos)
+                            free(current.impurities)
                         current.pos = <SIZE_t*> malloc((cardinality - 1) * sizeof(SIZE_t))
                         current.impurities = <double*> malloc(cardinality * sizeof(double))
                         # Feature is now constant
@@ -504,11 +508,14 @@ cdef class BestSplitter(BaseDenseSplitter):
 
                         q = 0
                         for i in range(start + 1, end):
-                            if Xf[i] > Xf[i - 1]:
+                            k = 0
+                            while k < Xf[i] - Xf[i - 1]:
                                 current.pos[q] = i
                                 q += 1
-                        free(best.pos)
-                        free(best.impurities)
+                                k += 1
+                        if best.pos != current.pos:
+                            free(best.pos)
+                            free(best.impurities)
                         best = current  # copy
 
 
