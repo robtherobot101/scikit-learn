@@ -499,20 +499,13 @@ cdef class BestSplitter(BaseDenseSplitter):
                             free(current.impurities)
                         current.pos = <SIZE_t*> malloc((cardinality - 1) * sizeof(SIZE_t))
                         current.impurities = <double*> malloc(cardinality * sizeof(double))
-                        # Feature is now constant
-                        features[f_j] = features[n_total_constants]
-                        features[n_total_constants] = current.feature
 
-                        n_found_constants += 1
-                        n_total_constants += 1
-
-                        q = 0
-                        for i in range(start + 1, end):
-                            k = 0
-                            while k < Xf[i] - Xf[i - 1]:
-                                current.pos[q] = i
+                        q = 1
+                        for i in range(cardinality - 1):
+                            while Xf[q] <= i and q < end:
                                 q += 1
-                                k += 1
+                            current.pos[i] = q
+
                         if best.pos != current.pos:
                             free(best.pos)
                             free(best.impurities)
@@ -546,6 +539,12 @@ cdef class BestSplitter(BaseDenseSplitter):
                 self.criterion.children_impurity(&best.impurities[0],
                                                  &best.impurities[1])
         else:
+            # Feature is now constant
+            features[f_j] = features[n_total_constants]
+            features[n_total_constants] = best.feature
+
+            n_found_constants += 1
+            n_total_constants += 1
             for i in range(start, end):
                 Xf[i] = self.X[samples[i], best.feature]
 
