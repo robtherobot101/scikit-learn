@@ -139,6 +139,9 @@ cdef class Criterion:
 
         pass
 
+    cdef void categorical_children_impurity(self, SIZE_t n_children, SIZE_t* pos, double* impurities) nogil:
+        pass
+
     cdef void node_value(self, double* dest) nogil:
         """Placeholder for storing the node value.
 
@@ -675,6 +678,54 @@ cdef class Gini(ClassificationCriterion):
 
         impurity_left[0] = gini_left / self.n_outputs
         impurity_right[0] = gini_right / self.n_outputs
+
+    cdef void categorical_children_impurity(self, SIZE_t n_children, SIZE_t* pos, double* impurities) nogil:
+
+        cdef SIZE_t* n_classes = self.n_classes
+        cdef double sq_count
+        cdef double* ginis = <double*> calloc(n_children, sizeof(double))
+        cdef double count_k
+        cdef double weight
+        cdef double w = 1.0
+        cdef SIZE_t k
+        cdef SIZE_t c
+        cdef SIZE_t i
+        cdef SIZE_t j
+        cdef SIZE_t l
+
+        for k in range(self.n_outputs):
+            for i in range(n_children):
+                weight = 0.0
+                sq_count = 0.0
+
+                for c in range(n_classes[k]):
+                    count_k = 0
+                    for j in range(self.start, pos[0]):
+                        if self.sample_weight != NULL:
+                            w = self.sample_weight[j]
+                        weight += w
+                        if self.y[self.samples[j], k] == c:
+                            count_k += w
+                    l = 0
+                    while l < n_children - 2:
+                        for j in range(pos[l], pos[l+1]):
+                            if self.sample_weight != NULL:
+                                w = self.sample_weight[j]
+                            weight += w
+                            if self.y[self.samples[j], k] == c:
+                                count_k += w
+                        l += 1
+                    for j in range(pos[l], self.end):
+                        if self.sample_weight != NULL:
+                            w = self.sample_weight[j]
+                        weight += w
+                        if self.y[self.samples[j], k] == c:
+                            count_k += w
+                    sq_count += count_k * count_k
+
+                ginis[i] += 1.0 - sq_count / (weight * weight)
+        for i in range(n_children):
+            impurities[i] = ginis[i] / self.n_outputs
 
 
 cdef class RegressionCriterion(Criterion):

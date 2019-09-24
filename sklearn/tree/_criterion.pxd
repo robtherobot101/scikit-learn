@@ -61,6 +61,7 @@ cdef class Criterion:
     cdef double node_impurity(self) nogil
     cdef void children_impurity(self, double* impurity_left,
                                 double* impurity_right) nogil
+    cdef void categorical_children_impurity(self, SIZE_t n_children, SIZE_t* pos, double* impurities) nogil
     cdef void node_value(self, double* dest) nogil
     cdef double impurity_improvement(self, double impurity) nogil
     cdef double proxy_impurity_improvement(self) nogil

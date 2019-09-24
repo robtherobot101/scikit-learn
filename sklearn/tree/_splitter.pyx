@@ -506,6 +506,8 @@ cdef class BestSplitter(BaseDenseSplitter):
                                 q += 1
                             current.pos[i] = q
 
+                        self.criterion.categorical_children_impurity(cardinality, current.pos, current.impurities)
+
                         if best.pos != current.pos:
                             free(best.pos)
                             free(best.impurities)
@@ -536,8 +538,14 @@ cdef class BestSplitter(BaseDenseSplitter):
                 self.criterion.reset()
                 self.criterion.update(best.pos[0])
                 best.improvement = self.criterion.impurity_improvement(impurity)
+                self.criterion.categorical_children_impurity(2, best.pos, best.impurities)
+                with gil:
+                    print(best.impurities[0], best.impurities[1])
                 self.criterion.children_impurity(&best.impurities[0],
                                                  &best.impurities[1])
+                with gil:
+                    print(best.impurities[0], best.impurities[1])
+                    print()
         else:
             # Feature is now constant
             features[f_j] = features[n_total_constants]
