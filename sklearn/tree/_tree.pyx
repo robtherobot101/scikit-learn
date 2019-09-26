@@ -282,6 +282,9 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 if depth > max_depth_seen:
                     max_depth_seen = depth
 
+                # free(split.pos)
+                # free(split.impurities)
+
             if rc >= 0:
                 rc = tree._resize_c(tree.node_count)
 
@@ -289,6 +292,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 tree.max_depth = max_depth_seen
         if rc == -1:
             raise MemoryError()
+        free(cardinalities_array)
 
 
 # Best first builder ----------------------------------------------------------
@@ -1160,11 +1164,15 @@ cdef class Tree:
         cdef np.npy_intp strides[1]
         strides[0] = sizeof(np.intp)
         Py_INCREF(NODE_DTYPE)
+        Py_INCREF(NODE_DTYPE)
+        Py_INCREF(NODE_DTYPE)
+        Py_INCREF(NODE_DTYPE)
         cdef np.ndarray arr
         arr = PyArray_NewFromDescr(<PyTypeObject *> np.ndarray, np.dtype(np.intp), 1, shape,
                                    strides, <void*> self.nodes[node].children,
                                    np.NPY_DEFAULT, None)
         Py_INCREF(self)
+        Py_INCREF(np.dtype(np.intp))
         arr.base = <PyObject*> self
         return arr
 

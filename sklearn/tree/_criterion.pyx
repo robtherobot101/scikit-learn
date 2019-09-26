@@ -684,48 +684,46 @@ cdef class Gini(ClassificationCriterion):
         cdef SIZE_t* n_classes = self.n_classes
         cdef double sq_count
         cdef double* ginis = <double*> calloc(n_children, sizeof(double))
-        cdef double count_k
+        cdef double* counts_k = <double*> calloc(self.n_outputs, sizeof(double))
+
         cdef double weight
         cdef double w = 1.0
         cdef SIZE_t k
         cdef SIZE_t c
         cdef SIZE_t i
         cdef SIZE_t j
-        cdef SIZE_t l
+        cdef SIZE_t start
+        cdef SIZE_t end
 
         for k in range(self.n_outputs):
             for i in range(n_children):
+                if i == 0:
+                    start = self.start
+                else:
+                    start = pos[i-1]
+                if i == n_children - 1:
+                    end = self.end
+                else:
+                    end = pos[i]
                 weight = 0.0
                 sq_count = 0.0
 
+                for j in range(start, end):
+                    if self.sample_weight != NULL:
+                        w = self.sample_weight[self.samples[j]]
+                    weight += w
+                    counts_k[<SIZE_t> self.y[self.samples[j], k]] += w
                 for c in range(n_classes[k]):
-                    count_k = 0
-                    for j in range(self.start, pos[0]):
-                        if self.sample_weight != NULL:
-                            w = self.sample_weight[j]
-                        weight += w
-                        if self.y[self.samples[j], k] == c:
-                            count_k += w
-                    l = 0
-                    while l < n_children - 2:
-                        for j in range(pos[l], pos[l+1]):
-                            if self.sample_weight != NULL:
-                                w = self.sample_weight[j]
-                            weight += w
-                            if self.y[self.samples[j], k] == c:
-                                count_k += w
-                        l += 1
-                    for j in range(pos[l], self.end):
-                        if self.sample_weight != NULL:
-                            w = self.sample_weight[j]
-                        weight += w
-                        if self.y[self.samples[j], k] == c:
-                            count_k += w
-                    sq_count += count_k * count_k
+                    sq_count += counts_k[c] * counts_k[c]
+                if weight != 0.0:
+                    ginis[i] += 1.0 - sq_count / (weight * weight)
+                for c in range(n_classes[k]):
+                    counts_k[c] = 0
 
-                ginis[i] += 1.0 - sq_count / (weight * weight)
         for i in range(n_children):
             impurities[i] = ginis[i] / self.n_outputs
+        free(counts_k)
+        free(ginis)
 
 
 cdef class RegressionCriterion(Criterion):
