@@ -44,6 +44,7 @@ cdef class Criterion:
         free(self.sum_total)
         free(self.sum_left)
         free(self.sum_right)
+        free(self.counts_k)
 
     def __getstate__(self):
         return {}
@@ -243,6 +244,7 @@ cdef class ClassificationCriterion(Criterion):
         self.sum_left = NULL
         self.sum_right = NULL
         self.n_classes = NULL
+        self.counts_k = NULL
 
         safe_realloc(&self.n_classes, n_outputs)
 
@@ -263,6 +265,7 @@ cdef class ClassificationCriterion(Criterion):
         self.sum_total = <double*> calloc(n_elements, sizeof(double))
         self.sum_left = <double*> calloc(n_elements, sizeof(double))
         self.sum_right = <double*> calloc(n_elements, sizeof(double))
+        self.counts_k = <double*> calloc(n_outputs, sizeof(double))
 
         if (self.sum_total == NULL or
                 self.sum_left == NULL or
@@ -680,11 +683,12 @@ cdef class Gini(ClassificationCriterion):
         impurity_right[0] = gini_right / self.n_outputs
 
     cdef void categorical_children_impurity(self, SIZE_t n_children, SIZE_t* pos, double* impurities) nogil:
-
+        with gil:
+            print("Q")
         cdef SIZE_t* n_classes = self.n_classes
         cdef double sq_count
         cdef double* ginis = <double*> calloc(n_children, sizeof(double))
-        cdef double* counts_k = <double*> calloc(self.n_outputs, sizeof(double))
+        cdef double* counts_k = self.counts_k
 
         cdef double weight
         cdef double w = 1.0
@@ -694,7 +698,8 @@ cdef class Gini(ClassificationCriterion):
         cdef SIZE_t j
         cdef SIZE_t start
         cdef SIZE_t end
-
+        with gil:
+            print(n_children)
         for k in range(self.n_outputs):
             for i in range(n_children):
                 if i == 0:
@@ -705,6 +710,8 @@ cdef class Gini(ClassificationCriterion):
                     end = self.end
                 else:
                     end = pos[i]
+                with gil:
+                    print(start, end)
                 weight = 0.0
                 sq_count = 0.0
 
@@ -722,7 +729,6 @@ cdef class Gini(ClassificationCriterion):
 
         for i in range(n_children):
             impurities[i] = ginis[i] / self.n_outputs
-        free(counts_k)
         free(ginis)
 
 
