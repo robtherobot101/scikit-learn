@@ -294,7 +294,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 tree.max_depth = max_depth_seen
         if rc == -1:
             raise MemoryError()
-        # free(cardinalities_array)
+        free(cardinalities_array)
 
 
 # Best first builder ----------------------------------------------------------
@@ -658,9 +658,9 @@ cdef class Tree:
         # Free all inner structures
         free(self.n_classes)
         free(self.value)
-        # for i in range(self.node_count):
-        #     free(self.nodes[i].children)
-        # free(self.nodes)
+        for i in range(self.node_count):
+            free(self.nodes[i].children)
+        free(self.nodes)
 
     def __reduce__(self):
         """Reduce re-implementation, for pickling."""

@@ -532,26 +532,19 @@ cdef class BestSplitter(BaseDenseSplitter):
                 self.criterion.reset()
                 self.criterion.update(best.pos[0])
                 best.improvement = self.criterion.impurity_improvement(impurity)
-                # self.criterion.categorical_children_impurity(2, best.pos, best.impurities)
-                # with gil:
-                #     print(best.impurities[0], best.impurities[1])
                 self.criterion.children_impurity(&best.impurities[0],
                                                  &best.impurities[1])
-                # with gil:
-                #     print(best.impurities[0], best.impurities[1])
-                #     print()
         else:
-            # Feature is now constant
-            features[f_j] = features[n_total_constants]
-            features[n_total_constants] = best.feature
-
-            n_found_constants += 1
-            n_total_constants += 1
+            # # Feature is now constant
+            # features[f_j], features[n_total_constants] = features[n_total_constants], features[f_j]
+            #
+            # n_found_constants += 1
+            # n_total_constants += 1
             for i in range(start, end):
                 Xf[i] = self.X[samples[i], best.feature]
 
             sort(Xf + start, samples + start, end - start)
-            # self.criterion.categorical_children_impurity(cardinality, best.pos, best.impurities)
+            self.criterion.categorical_children_impurity(cardinality, best.pos, best.impurities)
             # Calculate children impurities
             for i in range(cardinality):
                 best.impurities[i] = 0.5
@@ -571,6 +564,9 @@ cdef class BestSplitter(BaseDenseSplitter):
         memcpy(constant_features + n_known_constants,
                features + n_known_constants,
                sizeof(SIZE_t) * n_found_constants)
+
+        free(current.pos)
+        free(current.impurities)
 
         # Return values
         split[0] = best

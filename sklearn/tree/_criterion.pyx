@@ -41,6 +41,7 @@ cdef class Criterion:
     def __dealloc__(self):
         """Destructor."""
 
+        print(<SIZE_t> self.counts_k)
         free(self.sum_total)
         free(self.sum_left)
         free(self.sum_right)
@@ -157,7 +158,7 @@ cdef class Criterion:
 
         pass
 
-    cdef double proxy_impurity_improvement(self) nogil:
+    cdef double proxy_impurity_improvement(self, SIZE_t n_children) nogil:
         """Compute a proxy of the impurity reduction
 
         This method is used to speed up the search for the best split.
@@ -168,14 +169,17 @@ cdef class Criterion:
         The absolute impurity improvement is only computed by the
         impurity_improvement method once the best split has been found.
         """
-        cdef double impurity_left
-        cdef double impurity_right
-        self.children_impurity(&impurity_left, &impurity_right)
+        if n_children == 2:
+            cdef double impurity_left
+            cdef double impurity_right
+            self.children_impurity(&impurity_left, &impurity_right)
 
-        return (- self.weighted_n_right * impurity_right
-                - self.weighted_n_left * impurity_left)
+            return (- self.weighted_n_right * impurity_right
+                    - self.weighted_n_left * impurity_left)
+        else:
 
-    cdef double impurity_improvement(self, double impurity) nogil:
+
+    cdef double impurity_improvement(self, double impurity, SIZE_t n_children) nogil:
         """Compute the improvement in impurity
 
         This method computes the improvement in impurity when a split occurs.
@@ -683,8 +687,6 @@ cdef class Gini(ClassificationCriterion):
         impurity_right[0] = gini_right / self.n_outputs
 
     cdef void categorical_children_impurity(self, SIZE_t n_children, SIZE_t* pos, double* impurities) nogil:
-        with gil:
-            print("Q")
         cdef SIZE_t* n_classes = self.n_classes
         cdef double sq_count
         cdef double* ginis = <double*> calloc(n_children, sizeof(double))
@@ -725,7 +727,7 @@ cdef class Gini(ClassificationCriterion):
 
         for i in range(n_children):
             impurities[i] = ginis[i] / self.n_outputs
-        # free(ginis)
+        free(ginis)
 
 
 cdef class RegressionCriterion(Criterion):
@@ -779,6 +781,7 @@ cdef class RegressionCriterion(Criterion):
         self.sum_total = <double*> calloc(n_outputs, sizeof(double))
         self.sum_left = <double*> calloc(n_outputs, sizeof(double))
         self.sum_right = <double*> calloc(n_outputs, sizeof(double))
+        self.counts_k = <double*> calloc(n_outputs, sizeof(double))
 
         if (self.sum_total == NULL or 
                 self.sum_left == NULL or
