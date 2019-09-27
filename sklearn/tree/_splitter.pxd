@@ -55,6 +55,7 @@ cdef class Splitter:
     cdef SIZE_t n_features               # X.shape[1]
     cdef DTYPE_t* feature_values         # temp. array holding feature values
     cdef SIZE_t* cardinalities           # Cardinalities of categorical features
+    cdef SIZE_t max_children
 
     cdef SIZE_t start                    # Start position for the current node
     cdef SIZE_t end                      # End position for the current node
@@ -85,6 +86,7 @@ cdef class Splitter:
     cdef int init(self, object X, const DOUBLE_t[:, ::1] y,
                   DOUBLE_t* sample_weight,
                   SIZE_t* cardinalities,
+                  SIZE_t max_children,
                   np.ndarray X_idx_sorted=*) except -1
 
     cdef int node_reset(self, SIZE_t start, SIZE_t end,

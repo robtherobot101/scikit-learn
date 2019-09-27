@@ -176,6 +176,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         cdef SIZE_t min_samples_split = self.min_samples_split
         cdef double min_impurity_decrease = self.min_impurity_decrease
         cdef double min_impurity_split = self.min_impurity_split
+        cdef SIZE_t max_children = 2
 
         cdef SIZE_t* cardinalities_array = <SIZE_t*> malloc(sizeof(SIZE_t) * X.shape[1])
 
@@ -183,9 +184,11 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
         for i in range(X.shape[1]):
             cardinalities_array[i] = cardinalities[i]
+            if cardinalities[i] > max_children:
+                max_children = cardinalities[i]
 
         # Recursive partition (without actual recursion)
-        splitter.init(X, y, sample_weight_ptr, cardinalities_array, X_idx_sorted)
+        splitter.init(X, y, sample_weight_ptr, cardinalities_array, max_children, X_idx_sorted)
 
         cdef SIZE_t start
         cdef SIZE_t end
@@ -281,7 +284,6 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
                 if depth > max_depth_seen:
                     max_depth_seen = depth
-
                 # free(split.pos)
                 # free(split.impurities)
 
@@ -292,7 +294,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 tree.max_depth = max_depth_seen
         if rc == -1:
             raise MemoryError()
-        free(cardinalities_array)
+        # free(cardinalities_array)
 
 
 # Best first builder ----------------------------------------------------------
@@ -656,9 +658,9 @@ cdef class Tree:
         # Free all inner structures
         free(self.n_classes)
         free(self.value)
-        for i in range(self.node_count):
-            free(self.nodes[i].children)
-        free(self.nodes)
+        # for i in range(self.node_count):
+        #     free(self.nodes[i].children)
+        # free(self.nodes)
 
     def __reduce__(self):
         """Reduce re-implementation, for pickling."""

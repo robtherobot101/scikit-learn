@@ -44,7 +44,7 @@ cdef class Criterion:
         free(self.sum_total)
         free(self.sum_left)
         free(self.sum_right)
-        free(self.counts_k)
+        # free(self.counts_k)
 
     def __getstate__(self):
         return {}
@@ -698,8 +698,6 @@ cdef class Gini(ClassificationCriterion):
         cdef SIZE_t j
         cdef SIZE_t start
         cdef SIZE_t end
-        with gil:
-            print(n_children)
         for k in range(self.n_outputs):
             for i in range(n_children):
                 if i == 0:
@@ -710,8 +708,6 @@ cdef class Gini(ClassificationCriterion):
                     end = self.end
                 else:
                     end = pos[i]
-                with gil:
-                    print(start, end)
                 weight = 0.0
                 sq_count = 0.0
 
@@ -729,7 +725,7 @@ cdef class Gini(ClassificationCriterion):
 
         for i in range(n_children):
             impurities[i] = ginis[i] / self.n_outputs
-        free(ginis)
+        # free(ginis)
 
 
 cdef class RegressionCriterion(Criterion):

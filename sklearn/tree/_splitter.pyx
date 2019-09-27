@@ -19,6 +19,7 @@ from ._criterion cimport Criterion
 
 from libc.stdlib cimport free
 from libc.stdlib cimport qsort
+from libc.stdlib cimport calloc
 from libc.stdlib cimport malloc
 from libc.string cimport memcpy
 from libc.string cimport memset
@@ -44,11 +45,11 @@ cdef DTYPE_t FEATURE_THRESHOLD = 1e-7
 # in SparseSplitter
 cdef DTYPE_t EXTRACT_NNZ_SWITCH = 0.1
 
-cdef inline void _init_split(SplitRecord* self, SIZE_t start_pos) nogil:
-    self.impurities = <double*> malloc(2 * sizeof(double))
+cdef inline void _init_split(SplitRecord* self, SIZE_t start_pos, SIZE_t n_children) nogil:
+    self.impurities = <double*> calloc(n_children, sizeof(double))
     self.impurities[0] = INFINITY
     self.impurities[1] = INFINITY
-    self.pos = <SIZE_t*> malloc(2 * sizeof(SIZE_t))
+    self.pos = <SIZE_t*> calloc(n_children, sizeof(SIZE_t))
     self.pos[0] = start_pos
     self.feature = 0
     self.threshold = 0.
@@ -95,6 +96,7 @@ cdef class Splitter:
         self.n_features = 0
         self.feature_values = NULL
         self.cardinalities = NULL
+        self.max_children = 0
 
         self.sample_weight = NULL
 
@@ -123,6 +125,7 @@ cdef class Splitter:
                    const DOUBLE_t[:, ::1] y,
                    DOUBLE_t* sample_weight,
                    SIZE_t* cardinalities,
+                   SIZE_t max_children,
                    np.ndarray X_idx_sorted=None) except -1:
         """Initialize the splitter.
 
@@ -183,6 +186,7 @@ cdef class Splitter:
         safe_realloc(&self.constant_features, n_features)
 
         self.cardinalities = cardinalities
+        self.max_children = max_children
 
         self.y = y
 
@@ -270,6 +274,7 @@ cdef class BaseDenseSplitter(Splitter):
                   const DOUBLE_t[:, ::1] y,
                   DOUBLE_t* sample_weight,
                   SIZE_t* cardinalities,
+                  SIZE_t max_children,
                   np.ndarray X_idx_sorted=None) except -1:
         """Initialize the splitter
 
@@ -278,7 +283,7 @@ cdef class BaseDenseSplitter(Splitter):
         """
 
         # Call parent init
-        Splitter.init(self, X, y, sample_weight, cardinalities)
+        Splitter.init(self, X, y, sample_weight, cardinalities, max_children)
 
         self.X = X
 
@@ -330,7 +335,7 @@ cdef class BestSplitter(BaseDenseSplitter):
         cdef INT32_t* X_idx_sorted = self.X_idx_sorted_ptr
         cdef SIZE_t* sample_mask = self.sample_mask
 
-        cdef SplitRecord best, current
+        cdef SplitRecord best, current, tmp_split
         cdef double current_proxy_improvement = -INFINITY
         cdef double best_proxy_improvement = -INFINITY
 
@@ -357,8 +362,8 @@ cdef class BestSplitter(BaseDenseSplitter):
         cdef DTYPE_t current_feature_value
         cdef SIZE_t partition_end
 
-        _init_split(&best, end)
-        _init_split(&current, end)
+        _init_split(&best, end, self.max_children)
+        _init_split(&current, end, self.max_children)
 
         if self.presort == 1:
             for p in range(start, end):
@@ -447,11 +452,6 @@ cdef class BestSplitter(BaseDenseSplitter):
                         p = start
 
                         while p < end:
-                            if current.pos != best.pos:
-                                free(current.pos)
-                                free(current.impurities)
-                            current.pos = <SIZE_t*> malloc(1 * sizeof(SIZE_t))
-                            current.impurities = <double*> malloc(2 * sizeof(double))
                             while (p + 1 < end and
                                    Xf[p + 1] <= Xf[p] + FEATURE_THRESHOLD):
                                 p += 1
@@ -488,20 +488,14 @@ cdef class BestSplitter(BaseDenseSplitter):
                                         (current.threshold == INFINITY) or
                                         (current.threshold == -INFINITY)):
                                         current.threshold = Xf[p - 1]
-                                    if best.pos != current.pos:
-                                        free(best.pos)
-                                        free(best.impurities)
+                                    tmp_split = best
                                     best = current  # copy
-                                    with gil:
-                                        print(<SIZE_t> best.pos)
+                                    best.pos = tmp_split.pos
+                                    best.impurities = tmp_split.impurities
+                                    best.pos[0], best.pos[1] = current.pos[0], current.pos[1]
+                                    best.impurities[0], best.impurities[1] = current.impurities[0], current.impurities[1]
 
                     else:
-                        if current.pos != best.pos:
-                            free(current.pos)
-                            free(current.impurities)
-                        current.pos = <SIZE_t*> malloc((cardinality - 1) * sizeof(SIZE_t))
-                        current.impurities = <double*> malloc(cardinality * sizeof(double))
-
                         q = start
                         for i in range(cardinality - 1):
                             while Xf[q] <= i and q < end:
@@ -509,19 +503,14 @@ cdef class BestSplitter(BaseDenseSplitter):
                             current.pos[i] = q
 
                         # self.criterion.categorical_children_impurity(cardinality, current.pos, current.impurities)
-
-                        if best.pos != current.pos:
-                            free(best.pos)
-                            free(best.impurities)
+                        tmp_split = best
                         best = current  # copy
+                        current = tmp_split
 
 
 
 
 
-        if best.pos != current.pos:
-            free(current.pos)
-            free(current.impurities)
         # Reorganize into samples[start:best.pos[0]] + samples[best.pos[0]:end]
         cardinality = self.cardinalities[best.feature]
         if cardinality == -1:
@@ -543,14 +532,14 @@ cdef class BestSplitter(BaseDenseSplitter):
                 self.criterion.reset()
                 self.criterion.update(best.pos[0])
                 best.improvement = self.criterion.impurity_improvement(impurity)
-                self.criterion.categorical_children_impurity(2, best.pos, best.impurities)
-                with gil:
-                    print(best.impurities[0], best.impurities[1])
+                # self.criterion.categorical_children_impurity(2, best.pos, best.impurities)
+                # with gil:
+                #     print(best.impurities[0], best.impurities[1])
                 self.criterion.children_impurity(&best.impurities[0],
                                                  &best.impurities[1])
-                with gil:
-                    print(best.impurities[0], best.impurities[1])
-                    print()
+                # with gil:
+                #     print(best.impurities[0], best.impurities[1])
+                #     print()
         else:
             # Feature is now constant
             features[f_j] = features[n_total_constants]
@@ -562,13 +551,7 @@ cdef class BestSplitter(BaseDenseSplitter):
                 Xf[i] = self.X[samples[i], best.feature]
 
             sort(Xf + start, samples + start, end - start)
-            with gil:
-                print(<SIZE_t> best.pos)
-                print(self.criterion.start, start)
-                print(self.criterion.end, end)
-                for i in range(cardinality - 1):
-                    print(best.pos[i])
-            self.criterion.categorical_children_impurity(cardinality, best.pos, best.impurities)
+            # self.criterion.categorical_children_impurity(cardinality, best.pos, best.impurities)
             # Calculate children impurities
             for i in range(cardinality):
                 best.impurities[i] = 0.5
@@ -763,7 +746,7 @@ cdef class RandomSplitter(BaseDenseSplitter):
         cdef DTYPE_t current_feature_value
         cdef SIZE_t partition_end
 
-        _init_split(&best, end)
+        _init_split(&best, end, self.max_children)
 
         # Sample up to max_features without replacement using a
         # Fisher-Yates-based algorithm (using the local variables `f_i` and
@@ -958,6 +941,7 @@ cdef class BaseSparseSplitter(Splitter):
                   const DOUBLE_t[:, ::1] y,
                   DOUBLE_t* sample_weight,
                   SIZE_t* cardinalities,
+                  SIZE_t max_children,
                   np.ndarray X_idx_sorted=None) except -1:
         """Initialize the splitter
 
@@ -965,7 +949,7 @@ cdef class BaseSparseSplitter(Splitter):
         or 0 otherwise.
         """
         # Call parent init
-        Splitter.init(self, X, y, sample_weight,  cardinalities)
+        Splitter.init(self, X, y, sample_weight,  cardinalities, max_children)
 
         if not isinstance(X, csc_matrix):
             raise ValueError("X should be in csc format")
@@ -1288,7 +1272,7 @@ cdef class BestSparseSplitter(BaseSparseSplitter):
         cdef UINT32_t* random_state = &self.rand_r_state
 
         cdef SplitRecord best, current
-        _init_split(&best, end)
+        _init_split(&best, end, self.max_children)
         cdef double current_proxy_improvement = - INFINITY
         cdef double best_proxy_improvement = - INFINITY
 
@@ -1521,7 +1505,7 @@ cdef class RandomSparseSplitter(BaseSparseSplitter):
         cdef UINT32_t* random_state = &self.rand_r_state
 
         cdef SplitRecord best, current
-        _init_split(&best, end)
+        _init_split(&best, end, self.max_children)
         cdef double current_proxy_improvement = - INFINITY
         cdef double best_proxy_improvement = - INFINITY
 
