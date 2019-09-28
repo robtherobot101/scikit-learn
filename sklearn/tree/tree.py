@@ -144,6 +144,13 @@ class BaseDecisionTree(BaseEstimator, MultiOutputMixin, metaclass=ABCMeta):
             ct = make_column_transformer((self.oe, feature_mask), remainder='passthrough')
             X = ct.fit_transform(X, y)
 
+            # Highest number of distinct levels for a particular feature
+            if feature_mask is not None and any(feature_mask):
+                max_cardinality = max(len(x) for x in self.oe.categories_)
+            else:
+                # All features are numerical
+                max_cardinality = 2
+
         if check_input:
             X = check_array(X, dtype=DTYPE, accept_sparse="csc")
             y = check_array(y, ensure_2d=False, dtype=None)
@@ -360,10 +367,12 @@ class BaseDecisionTree(BaseEstimator, MultiOutputMixin, metaclass=ABCMeta):
         if not isinstance(criterion, Criterion):
             if is_classification:
                 criterion = CRITERIA_CLF[self.criterion](self.n_outputs_,
-                                                         self.n_classes_)
+                                                         self.n_classes_,
+                                                         max_cardinality)
             else:
                 criterion = CRITERIA_REG[self.criterion](self.n_outputs_,
-                                                         n_samples)
+                                                         n_samples,
+                                                         max_cardinality)
 
         SPLITTERS = SPARSE_SPLITTERS if issparse(X) else DENSE_SPLITTERS
 

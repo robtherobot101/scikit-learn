@@ -45,6 +45,7 @@ cdef class Criterion:
         free(self.sum_total)
         free(self.sum_left)
         free(self.sum_right)
+        free(self.weighted_n_splits)
         # free(self.counts_k)
 
     def __getstate__(self):
@@ -169,15 +170,12 @@ cdef class Criterion:
         The absolute impurity improvement is only computed by the
         impurity_improvement method once the best split has been found.
         """
-        if n_children == 2:
-            cdef double impurity_left
-            cdef double impurity_right
-            self.children_impurity(&impurity_left, &impurity_right)
+        cdef double impurity_left
+        cdef double impurity_right
+        self.children_impurity(&impurity_left, &impurity_right)
 
-            return (- self.weighted_n_right * impurity_right
-                    - self.weighted_n_left * impurity_left)
-        else:
-
+        return (- self.weighted_n_splits[1] * impurity_right
+                - self.weighted_n_splits[0] * impurity_left)
 
     cdef double impurity_improvement(self, double impurity, SIZE_t n_children) nogil:
         """Compute the improvement in impurity
@@ -208,9 +206,9 @@ cdef class Criterion:
         self.children_impurity(&impurity_left, &impurity_right)
 
         return ((self.weighted_n_node_samples / self.weighted_n_samples) *
-                (impurity - (self.weighted_n_right / 
+                (impurity - (self.weighted_n_splits[1] / 
                              self.weighted_n_node_samples * impurity_right)
-                          - (self.weighted_n_left / 
+                          - (self.weighted_n_splits[0] / 
                              self.weighted_n_node_samples * impurity_left)))
 
 
@@ -218,7 +216,7 @@ cdef class ClassificationCriterion(Criterion):
     """Abstract criterion for classification."""
 
     def __cinit__(self, SIZE_t n_outputs,
-                  np.ndarray[SIZE_t, ndim=1] n_classes):
+                  np.ndarray[SIZE_t, ndim=1] n_classes, SIZE_t max_children):
         """Initialize attributes for this criterion.
 
         Parameters
@@ -240,8 +238,12 @@ cdef class ClassificationCriterion(Criterion):
         self.n_samples = 0
         self.n_node_samples = 0
         self.weighted_n_node_samples = 0.0
-        self.weighted_n_left = 0.0
-        self.weighted_n_right = 0.0
+
+        self.weighted_n_splits = NULL
+        self.weighted_n_splits = <double*> calloc(max_children, sizeof(double))
+
+        self.weighted_n_splits[0] = 0.0
+        self.weighted_n_splits[1] = 0.0
 
         # Count labels for each output
         self.sum_total = NULL
@@ -273,7 +275,9 @@ cdef class ClassificationCriterion(Criterion):
 
         if (self.sum_total == NULL or
                 self.sum_left == NULL or
-                self.sum_right == NULL):
+                self.sum_right == NULL or
+                self.counts_k == NULL or
+                self.weighted_n_splits == NULL):
             raise MemoryError()
 
     def __dealloc__(self):
@@ -361,8 +365,8 @@ cdef class ClassificationCriterion(Criterion):
         """
         self.pos = self.start
 
-        self.weighted_n_left = 0.0
-        self.weighted_n_right = self.weighted_n_node_samples
+        self.weighted_n_splits[0] = 0.0
+        self.weighted_n_splits[1] = self.weighted_n_node_samples
 
         cdef double* sum_total = self.sum_total
         cdef double* sum_left = self.sum_left
@@ -388,8 +392,8 @@ cdef class ClassificationCriterion(Criterion):
         """
         self.pos = self.end
 
-        self.weighted_n_left = self.weighted_n_node_samples
-        self.weighted_n_right = 0.0
+        self.weighted_n_splits[0] = self.weighted_n_node_samples
+        self.weighted_n_splits[1] = 0.0
 
         cdef double* sum_total = self.sum_total
         cdef double* sum_left = self.sum_left
@@ -456,7 +460,7 @@ cdef class ClassificationCriterion(Criterion):
                     label_index = k * self.sum_stride + <SIZE_t> self.y[i, k]
                     sum_left[label_index] += w
 
-                self.weighted_n_left += w
+                self.weighted_n_splits[0] += w
 
         else:
             self.reverse_reset()
@@ -471,10 +475,10 @@ cdef class ClassificationCriterion(Criterion):
                     label_index = k * self.sum_stride + <SIZE_t> self.y[i, k]
                     sum_left[label_index] -= w
 
-                self.weighted_n_left -= w
+                self.weighted_n_splits[0] -= w
 
         # Update right part statistics
-        self.weighted_n_right = self.weighted_n_node_samples - self.weighted_n_left
+        self.weighted_n_splits[1] = self.weighted_n_node_samples - self.weighted_n_splits[0]
         for k in range(self.n_outputs):
             for c in range(n_classes[k]):
                 sum_right[c] = sum_total[c] - sum_left[c]
@@ -578,12 +582,12 @@ cdef class Entropy(ClassificationCriterion):
             for c in range(n_classes[k]):
                 count_k = sum_left[c]
                 if count_k > 0.0:
-                    count_k /= self.weighted_n_left
+                    count_k /= self.weighted_n_splits[0]
                     entropy_left -= count_k * log(count_k)
 
                 count_k = sum_right[c]
                 if count_k > 0.0:
-                    count_k /= self.weighted_n_right
+                    count_k /= self.weighted_n_splits[1]
                     entropy_right -= count_k * log(count_k)
 
             sum_left += self.sum_stride
@@ -674,11 +678,11 @@ cdef class Gini(ClassificationCriterion):
                 count_k = sum_right[c]
                 sq_count_right += count_k * count_k
 
-            gini_left += 1.0 - sq_count_left / (self.weighted_n_left *
-                                                self.weighted_n_left)
+            gini_left += 1.0 - sq_count_left / (self.weighted_n_splits[0] *
+                                                self.weighted_n_splits[0])
 
-            gini_right += 1.0 - sq_count_right / (self.weighted_n_right *
-                                                  self.weighted_n_right)
+            gini_right += 1.0 - sq_count_right / (self.weighted_n_splits[1] *
+                                                  self.weighted_n_splits[1])
 
             sum_left += self.sum_stride
             sum_right += self.sum_stride
@@ -742,7 +746,7 @@ cdef class RegressionCriterion(Criterion):
             = (\sum_i^n y_i ** 2) - n_samples * y_bar ** 2
     """
 
-    def __cinit__(self, SIZE_t n_outputs, SIZE_t n_samples):
+    def __cinit__(self, SIZE_t n_outputs, SIZE_t n_samples, SIZE_t max_children):
         """Initialize parameters for this criterion.
 
         Parameters
@@ -766,8 +770,8 @@ cdef class RegressionCriterion(Criterion):
         self.n_samples = n_samples
         self.n_node_samples = 0
         self.weighted_n_node_samples = 0.0
-        self.weighted_n_left = 0.0
-        self.weighted_n_right = 0.0
+        self.weighted_n_splits[0] = 0.0
+        self.weighted_n_splits[1] = 0.0
 
         self.sq_sum_total = 0.0
 
@@ -782,6 +786,7 @@ cdef class RegressionCriterion(Criterion):
         self.sum_left = <double*> calloc(n_outputs, sizeof(double))
         self.sum_right = <double*> calloc(n_outputs, sizeof(double))
         self.counts_k = <double*> calloc(n_outputs, sizeof(double))
+        self.weighted_n_splits = <double*> calloc(max_children, sizeof(double))
 
         if (self.sum_total == NULL or 
                 self.sum_left == NULL or
@@ -840,8 +845,8 @@ cdef class RegressionCriterion(Criterion):
         memset(self.sum_left, 0, n_bytes)
         memcpy(self.sum_right, self.sum_total, n_bytes)
 
-        self.weighted_n_left = 0.0
-        self.weighted_n_right = self.weighted_n_node_samples
+        self.weighted_n_splits[0] = 0.0
+        self.weighted_n_splits[1] = self.weighted_n_node_samples
         self.pos = self.start
         return 0
 
@@ -851,8 +856,8 @@ cdef class RegressionCriterion(Criterion):
         memset(self.sum_right, 0, n_bytes)
         memcpy(self.sum_left, self.sum_total, n_bytes)
 
-        self.weighted_n_right = 0.0
-        self.weighted_n_left = self.weighted_n_node_samples
+        self.weighted_n_splits[1] = 0.0
+        self.weighted_n_splits[0] = self.weighted_n_node_samples
         self.pos = self.end
         return 0
 
@@ -891,7 +896,7 @@ cdef class RegressionCriterion(Criterion):
                 for k in range(self.n_outputs):
                     sum_left[k] += w * self.y[i, k]
 
-                self.weighted_n_left += w
+                self.weighted_n_splits[0] += w
         else:
             self.reverse_reset()
 
@@ -904,10 +909,10 @@ cdef class RegressionCriterion(Criterion):
                 for k in range(self.n_outputs):
                     sum_left[k] -= w * self.y[i, k]
 
-                self.weighted_n_left -= w
+                self.weighted_n_splits[0] -= w
 
-        self.weighted_n_right = (self.weighted_n_node_samples -
-                                 self.weighted_n_left)
+        self.weighted_n_splits[1] = (self.weighted_n_node_samples -
+                                 self.weighted_n_splits[0])
         for k in range(self.n_outputs):
             sum_right[k] = sum_total[k] - sum_left[k]
 
@@ -950,7 +955,7 @@ cdef class MSE(RegressionCriterion):
 
         return impurity / self.n_outputs
 
-    cdef double proxy_impurity_improvement(self) nogil:
+    cdef double proxy_impurity_improvement(self, SIZE_t n_children) nogil:
         """Compute a proxy of the impurity reduction
 
         This method is used to speed up the search for the best split.
@@ -973,8 +978,8 @@ cdef class MSE(RegressionCriterion):
             proxy_impurity_left += sum_left[k] * sum_left[k]
             proxy_impurity_right += sum_right[k] * sum_right[k]
 
-        return (proxy_impurity_left / self.weighted_n_left +
-                proxy_impurity_right / self.weighted_n_right)
+        return (proxy_impurity_left / self.weighted_n_splits[0] +
+                proxy_impurity_right / self.weighted_n_splits[1])
 
     cdef void children_impurity(self, double* impurity_left,
                                 double* impurity_right) nogil:
@@ -1011,12 +1016,12 @@ cdef class MSE(RegressionCriterion):
 
         sq_sum_right = self.sq_sum_total - sq_sum_left
 
-        impurity_left[0] = sq_sum_left / self.weighted_n_left
-        impurity_right[0] = sq_sum_right / self.weighted_n_right
+        impurity_left[0] = sq_sum_left / self.weighted_n_splits[0]
+        impurity_right[0] = sq_sum_right / self.weighted_n_splits[1]
 
         for k in range(self.n_outputs):
-            impurity_left[0] -= (sum_left[k] / self.weighted_n_left) ** 2.0
-            impurity_right[0] -= (sum_right[k] / self.weighted_n_right) ** 2.0
+            impurity_left[0] -= (sum_left[k] / self.weighted_n_splits[0]) ** 2.0
+            impurity_right[0] -= (sum_right[k] / self.weighted_n_splits[1]) ** 2.0
 
         impurity_left[0] /= self.n_outputs
         impurity_right[0] /= self.n_outputs
@@ -1034,7 +1039,7 @@ cdef class MAE(RegressionCriterion):
     cdef np.ndarray right_child
     cdef DOUBLE_t* node_medians
 
-    def __cinit__(self, SIZE_t n_outputs, SIZE_t n_samples):
+    def __cinit__(self, SIZE_t n_outputs, SIZE_t n_samples, SIZE_t max_children):
         """Initialize parameters for this criterion.
 
         Parameters
@@ -1058,8 +1063,8 @@ cdef class MAE(RegressionCriterion):
         self.n_samples = n_samples
         self.n_node_samples = 0
         self.weighted_n_node_samples = 0.0
-        self.weighted_n_left = 0.0
-        self.weighted_n_right = 0.0
+        self.weighted_n_splits[0] = 0.0
+        self.weighted_n_splits[1] = 0.0
 
         # Allocate accumulators. Make sure they are NULL, not uninitialized,
         # before an exception can be raised (which triggers __dealloc__).
@@ -1070,6 +1075,7 @@ cdef class MAE(RegressionCriterion):
 
         self.left_child = np.empty(n_outputs, dtype='object')
         self.right_child = np.empty(n_outputs, dtype='object')
+        self.weighted_n_splits = <double*> calloc(max_children, sizeof(double))
         # initialize WeightedMedianCalculators
         for k in range(n_outputs):
             self.left_child[k] = WeightedMedianCalculator(n_samples)
@@ -1139,8 +1145,8 @@ cdef class MAE(RegressionCriterion):
         cdef void** left_child = <void**> self.left_child.data
         cdef void** right_child = <void**> self.right_child.data
 
-        self.weighted_n_left = 0.0
-        self.weighted_n_right = self.weighted_n_node_samples
+        self.weighted_n_splits[0] = 0.0
+        self.weighted_n_splits[1] = self.weighted_n_node_samples
         self.pos = self.start
 
         # reset the WeightedMedianCalculators, left should have no
@@ -1164,8 +1170,8 @@ cdef class MAE(RegressionCriterion):
         or 0 otherwise.
         """
 
-        self.weighted_n_right = 0.0
-        self.weighted_n_left = self.weighted_n_node_samples
+        self.weighted_n_splits[1] = 0.0
+        self.weighted_n_splits[0] = self.weighted_n_node_samples
         self.pos = self.end
 
         cdef DOUBLE_t value
@@ -1223,7 +1229,7 @@ cdef class MAE(RegressionCriterion):
                     # push method ends up calling safe_realloc, hence except -1
                     (<WeightedMedianCalculator> left_child[k]).push(self.y[i, k], w)
 
-                self.weighted_n_left += w
+                self.weighted_n_splits[0] += w
         else:
             self.reverse_reset()
 
@@ -1238,10 +1244,10 @@ cdef class MAE(RegressionCriterion):
                     (<WeightedMedianCalculator> left_child[k]).remove(self.y[i, k], w)
                     (<WeightedMedianCalculator> right_child[k]).push(self.y[i, k], w)
 
-                self.weighted_n_left -= w
+                self.weighted_n_splits[0] -= w
 
-        self.weighted_n_right = (self.weighted_n_node_samples -
-                                 self.weighted_n_left)
+        self.weighted_n_splits[1] = (self.weighted_n_node_samples -
+                                 self.weighted_n_splits[0])
         self.pos = new_pos
         return 0
 
@@ -1305,7 +1311,7 @@ cdef class MAE(RegressionCriterion):
                     w = sample_weight[i]
 
                 impurity_left += fabs(self.y[i, k] - median) * w
-        p_impurity_left[0] = impurity_left / (self.weighted_n_left * 
+        p_impurity_left[0] = impurity_left / (self.weighted_n_splits[0] * 
                                               self.n_outputs)
 
         for k in range(self.n_outputs):
@@ -1317,7 +1323,7 @@ cdef class MAE(RegressionCriterion):
                     w = sample_weight[i]
 
                 impurity_right += fabs(self.y[i, k] - median) * w
-        p_impurity_right[0] = impurity_right / (self.weighted_n_right * 
+        p_impurity_right[0] = impurity_right / (self.weighted_n_splits[1] * 
                                                 self.n_outputs)
 
 
@@ -1330,7 +1336,7 @@ cdef class FriedmanMSE(MSE):
         improvement = n_left * n_right * diff^2 / (n_left + n_right)
     """
 
-    cdef double proxy_impurity_improvement(self) nogil:
+    cdef double proxy_impurity_improvement(self, SIZE_t n_children) nogil:
         """Compute a proxy of the impurity reduction
 
         This method is used to speed up the search for the best split.
@@ -1355,12 +1361,12 @@ cdef class FriedmanMSE(MSE):
             total_sum_left += sum_left[k]
             total_sum_right += sum_right[k]
 
-        diff = (self.weighted_n_right * total_sum_left -
-                self.weighted_n_left * total_sum_right)
+        diff = (self.weighted_n_splits[1] * total_sum_left -
+                self.weighted_n_splits[0] * total_sum_right)
 
-        return diff * diff / (self.weighted_n_left * self.weighted_n_right)
+        return diff * diff / (self.weighted_n_splits[0] * self.weighted_n_splits[1])
 
-    cdef double impurity_improvement(self, double impurity) nogil:
+    cdef double impurity_improvement(self, double impurity, SIZE_t n_children) nogil:
         cdef double* sum_left = self.sum_left
         cdef double* sum_right = self.sum_right
 
@@ -1374,8 +1380,8 @@ cdef class FriedmanMSE(MSE):
             total_sum_left += sum_left[k]
             total_sum_right += sum_right[k]
 
-        diff = (self.weighted_n_right * total_sum_left -
-                self.weighted_n_left * total_sum_right) / self.n_outputs
+        diff = (self.weighted_n_splits[1] * total_sum_left -
+                self.weighted_n_splits[0] * total_sum_right) / self.n_outputs
 
-        return (diff * diff / (self.weighted_n_left * self.weighted_n_right *
+        return (diff * diff / (self.weighted_n_splits[0] * self.weighted_n_splits[1] *
                                self.weighted_n_node_samples))

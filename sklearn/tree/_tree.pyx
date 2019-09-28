@@ -597,7 +597,7 @@ cdef class Tree:
         def __get__(self):
             l = []
             for i in range(self.node_count):
-                l.append(self._get_children_ndarray(i))
+                l.append(sizet_ptr_to_ndarray(self.nodes[i].children, self.nodes[i].n_children))
             return l
 
     property n_leaves:
@@ -1156,25 +1156,6 @@ cdef class Tree:
                                    strides, <void*> self.nodes,
                                    np.NPY_DEFAULT, None)
         Py_INCREF(self)
-        arr.base = <PyObject*> self
-        return arr
-
-    cdef np.ndarray _get_children_ndarray(self, SIZE_t node):
-
-        cdef np.npy_intp shape[1]
-        shape[0] = <np.npy_intp> self.nodes[node].n_children
-        cdef np.npy_intp strides[1]
-        strides[0] = sizeof(np.intp)
-        Py_INCREF(NODE_DTYPE)
-        Py_INCREF(NODE_DTYPE)
-        Py_INCREF(NODE_DTYPE)
-        Py_INCREF(NODE_DTYPE)
-        cdef np.ndarray arr
-        arr = PyArray_NewFromDescr(<PyTypeObject *> np.ndarray, np.dtype(np.intp), 1, shape,
-                                   strides, <void*> self.nodes[node].children,
-                                   np.NPY_DEFAULT, None)
-        Py_INCREF(self)
-        Py_INCREF(np.dtype(np.intp))
         arr.base = <PyObject*> self
         return arr
 

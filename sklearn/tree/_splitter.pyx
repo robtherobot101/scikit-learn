@@ -473,11 +473,11 @@ cdef class BestSplitter(BaseDenseSplitter):
                                 self.criterion.update(current.pos[0])
 
                                 # Reject if min_weight_leaf is not satisfied
-                                if ((self.criterion.weighted_n_left < min_weight_leaf) or
-                                        (self.criterion.weighted_n_right < min_weight_leaf)):
+                                if ((self.criterion.weighted_n_splits[0] < min_weight_leaf) or
+                                        (self.criterion.weighted_n_splits[1] < min_weight_leaf)):
                                     continue
 
-                                current_proxy_improvement = self.criterion.proxy_impurity_improvement()
+                                current_proxy_improvement = self.criterion.proxy_impurity_improvement(2)
 
                                 if current_proxy_improvement > best_proxy_improvement:
                                     best_proxy_improvement = current_proxy_improvement
@@ -531,7 +531,7 @@ cdef class BestSplitter(BaseDenseSplitter):
 
                 self.criterion.reset()
                 self.criterion.update(best.pos[0])
-                best.improvement = self.criterion.impurity_improvement(impurity)
+                best.improvement = self.criterion.impurity_improvement(impurity, 2)
                 self.criterion.children_impurity(&best.impurities[0],
                                                  &best.impurities[1])
         else:
@@ -852,11 +852,11 @@ cdef class RandomSplitter(BaseDenseSplitter):
                     self.criterion.update(current.pos[0])
 
                     # Reject if min_weight_leaf is not satisfied
-                    if ((self.criterion.weighted_n_left < min_weight_leaf) or
-                            (self.criterion.weighted_n_right < min_weight_leaf)):
+                    if ((self.criterion.weighted_n_splits[0] < min_weight_leaf) or
+                            (self.criterion.weighted_n_splits[1] < min_weight_leaf)):
                         continue
 
-                    current_proxy_improvement = self.criterion.proxy_impurity_improvement()
+                    current_proxy_improvement = self.criterion.proxy_impurity_improvement(2)
 
                     if current_proxy_improvement > best_proxy_improvement:
                         best_proxy_improvement = current_proxy_improvement
@@ -882,7 +882,7 @@ cdef class RandomSplitter(BaseDenseSplitter):
 
             self.criterion.reset()
             self.criterion.update(best.pos[0])
-            best.improvement = self.criterion.impurity_improvement(impurity)
+            best.improvement = self.criterion.impurity_improvement(impurity, 2)
             self.criterion.children_impurity(&best.impurities[0],
                                              &best.impurities[1])
 
@@ -1413,11 +1413,11 @@ cdef class BestSparseSplitter(BaseSparseSplitter):
                             self.criterion.update(current.pos[0])
 
                             # Reject if min_weight_leaf is not satisfied
-                            if ((self.criterion.weighted_n_left < min_weight_leaf) or
-                                    (self.criterion.weighted_n_right < min_weight_leaf)):
+                            if ((self.criterion.weighted_n_splits[0] < min_weight_leaf) or
+                                    (self.criterion.weighted_n_splits[1] < min_weight_leaf)):
                                 continue
 
-                            current_proxy_improvement = self.criterion.proxy_impurity_improvement()
+                            current_proxy_improvement = self.criterion.proxy_impurity_improvement(2)
 
                             if current_proxy_improvement > best_proxy_improvement:
                                 best_proxy_improvement = current_proxy_improvement
@@ -1441,7 +1441,7 @@ cdef class BestSparseSplitter(BaseSparseSplitter):
 
             self.criterion.reset()
             self.criterion.update(best.pos[0])
-            best.improvement = self.criterion.impurity_improvement(impurity)
+            best.improvement = self.criterion.impurity_improvement(impurity, 2)
             self.criterion.children_impurity(&best.impurities[0],
                                              &best.impurities[1])
 
@@ -1647,15 +1647,15 @@ cdef class RandomSparseSplitter(BaseSparseSplitter):
                     self.criterion.update(current.pos[0])
 
                     # Reject if min_weight_leaf is not satisfied
-                    if ((self.criterion.weighted_n_left < min_weight_leaf) or
-                            (self.criterion.weighted_n_right < min_weight_leaf)):
+                    if ((self.criterion.weighted_n_splits[0] < min_weight_leaf) or
+                            (self.criterion.weighted_n_splits[1] < min_weight_leaf)):
                         continue
 
-                    current_proxy_improvement = self.criterion.proxy_impurity_improvement()
+                    current_proxy_improvement = self.criterion.proxy_impurity_improvement(2)
 
                     if current_proxy_improvement > best_proxy_improvement:
                         best_proxy_improvement = current_proxy_improvement
-                        current.improvement = self.criterion.impurity_improvement(impurity)
+                        current.improvement = self.criterion.impurity_improvement(impurity, 2)
 
                         self.criterion.children_impurity(&current.impurities[0],
                                                          &current.impurities[1])
@@ -1672,7 +1672,7 @@ cdef class RandomSparseSplitter(BaseSparseSplitter):
 
             self.criterion.reset()
             self.criterion.update(best.pos[0])
-            best.improvement = self.criterion.impurity_improvement(impurity)
+            best.improvement = self.criterion.impurity_improvement(impurity, 2)
             self.criterion.children_impurity(&best.impurities[0],
                                              &best.impurities[1])
 

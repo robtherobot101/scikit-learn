@@ -37,8 +37,9 @@ cdef class Criterion:
     cdef SIZE_t n_node_samples           # Number of samples in the node (end-start)
     cdef double weighted_n_samples       # Weighted number of samples (in total)
     cdef double weighted_n_node_samples  # Weighted number of samples in the node
-    cdef double weighted_n_left          # Weighted number of samples in the left node
-    cdef double weighted_n_right         # Weighted number of samples in the right node
+    # cdef double weighted_n_left          # Weighted number of samples in the left node
+    # cdef double weighted_n_right         # Weighted number of samples in the right node
+    cdef double* weighted_n_splits
 
     cdef double* sum_total          # For classification criteria, the sum of the
                                     # weighted count of each label. For regression,
