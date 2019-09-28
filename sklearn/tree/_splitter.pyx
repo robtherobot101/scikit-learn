@@ -477,7 +477,7 @@ cdef class BestSplitter(BaseDenseSplitter):
                                         (self.criterion.weighted_n_splits[1] < min_weight_leaf)):
                                     continue
 
-                                current_proxy_improvement = self.criterion.proxy_impurity_improvement(2)
+                                current_proxy_improvement = self.criterion.proxy_impurity_improvement()
 
                                 if current_proxy_improvement > best_proxy_improvement:
                                     best_proxy_improvement = current_proxy_improvement
@@ -502,10 +502,17 @@ cdef class BestSplitter(BaseDenseSplitter):
                                 q += 1
                             current.pos[i] = q
 
-                        # self.criterion.categorical_children_impurity(cardinality, current.pos, current.impurities)
-                        tmp_split = best
-                        best = current  # copy
-                        current = tmp_split
+                        self.criterion.update_categorical(current.pos, cardinality)
+                        current_proxy_improvement = self.criterion.proxy_categorical_impurity_improvement(current.pos, cardinality)
+
+                        if current_proxy_improvement > best_proxy_improvement:
+                            best_proxy_improvement = current_proxy_improvement
+
+                            self.criterion.update_categorical(current.pos, cardinality)
+                            self.criterion.categorical_children_impurity(cardinality, current.pos, current.impurities)
+                            tmp_split = best
+                            best = current  # copy
+                            current = tmp_split
 
 
 
@@ -531,7 +538,7 @@ cdef class BestSplitter(BaseDenseSplitter):
 
                 self.criterion.reset()
                 self.criterion.update(best.pos[0])
-                best.improvement = self.criterion.impurity_improvement(impurity, 2)
+                best.improvement = self.criterion.impurity_improvement(impurity)
                 self.criterion.children_impurity(&best.impurities[0],
                                                  &best.impurities[1])
         else:
@@ -544,11 +551,9 @@ cdef class BestSplitter(BaseDenseSplitter):
                 Xf[i] = self.X[samples[i], best.feature]
 
             sort(Xf + start, samples + start, end - start)
+            self.criterion.update_categorical(best.pos, cardinality)
+            best.improvement = self.criterion.categorical_impurity_improvement(impurity, best.pos, cardinality)
             self.criterion.categorical_children_impurity(cardinality, best.pos, best.impurities)
-            # Calculate children impurities
-            for i in range(cardinality):
-                best.impurities[i] = 0.5
-            best.improvement = 0.5
 
         # Reset sample mask
         if self.presort == 1:
@@ -856,7 +861,7 @@ cdef class RandomSplitter(BaseDenseSplitter):
                             (self.criterion.weighted_n_splits[1] < min_weight_leaf)):
                         continue
 
-                    current_proxy_improvement = self.criterion.proxy_impurity_improvement(2)
+                    current_proxy_improvement = self.criterion.proxy_impurity_improvement()
 
                     if current_proxy_improvement > best_proxy_improvement:
                         best_proxy_improvement = current_proxy_improvement
@@ -882,7 +887,7 @@ cdef class RandomSplitter(BaseDenseSplitter):
 
             self.criterion.reset()
             self.criterion.update(best.pos[0])
-            best.improvement = self.criterion.impurity_improvement(impurity, 2)
+            best.improvement = self.criterion.impurity_improvement(impurity)
             self.criterion.children_impurity(&best.impurities[0],
                                              &best.impurities[1])
 
@@ -1417,7 +1422,7 @@ cdef class BestSparseSplitter(BaseSparseSplitter):
                                     (self.criterion.weighted_n_splits[1] < min_weight_leaf)):
                                 continue
 
-                            current_proxy_improvement = self.criterion.proxy_impurity_improvement(2)
+                            current_proxy_improvement = self.criterion.proxy_impurity_improvement()
 
                             if current_proxy_improvement > best_proxy_improvement:
                                 best_proxy_improvement = current_proxy_improvement
@@ -1441,7 +1446,7 @@ cdef class BestSparseSplitter(BaseSparseSplitter):
 
             self.criterion.reset()
             self.criterion.update(best.pos[0])
-            best.improvement = self.criterion.impurity_improvement(impurity, 2)
+            best.improvement = self.criterion.impurity_improvement(impurity)
             self.criterion.children_impurity(&best.impurities[0],
                                              &best.impurities[1])
 
@@ -1651,11 +1656,11 @@ cdef class RandomSparseSplitter(BaseSparseSplitter):
                             (self.criterion.weighted_n_splits[1] < min_weight_leaf)):
                         continue
 
-                    current_proxy_improvement = self.criterion.proxy_impurity_improvement(2)
+                    current_proxy_improvement = self.criterion.proxy_impurity_improvement()
 
                     if current_proxy_improvement > best_proxy_improvement:
                         best_proxy_improvement = current_proxy_improvement
-                        current.improvement = self.criterion.impurity_improvement(impurity, 2)
+                        current.improvement = self.criterion.impurity_improvement(impurity)
 
                         self.criterion.children_impurity(&current.impurities[0],
                                                          &current.impurities[1])
@@ -1672,7 +1677,7 @@ cdef class RandomSparseSplitter(BaseSparseSplitter):
 
             self.criterion.reset()
             self.criterion.update(best.pos[0])
-            best.improvement = self.criterion.impurity_improvement(impurity, 2)
+            best.improvement = self.criterion.impurity_improvement(impurity)
             self.criterion.children_impurity(&best.impurities[0],
                                              &best.impurities[1])
 

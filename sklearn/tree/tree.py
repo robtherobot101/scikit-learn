@@ -145,11 +145,11 @@ class BaseDecisionTree(BaseEstimator, MultiOutputMixin, metaclass=ABCMeta):
             X = ct.fit_transform(X, y)
 
             # Highest number of distinct levels for a particular feature
-            if feature_mask is not None and any(feature_mask):
-                max_cardinality = max(len(x) for x in self.oe.categories_)
-            else:
-                # All features are numerical
-                max_cardinality = 2
+        if feature_mask is not None and any(feature_mask):
+            max_cardinality = max(len(x) for x in self.oe.categories_)
+        else:
+            # All features are numerical
+            max_cardinality = 2
 
         if check_input:
             X = check_array(X, dtype=DTYPE, accept_sparse="csc")

@@ -60,13 +60,16 @@ cdef class Criterion:
     cdef int reset(self) nogil except -1
     cdef int reverse_reset(self) nogil except -1
     cdef int update(self, SIZE_t new_pos) nogil except -1
+    cdef int update_categorical(self, SIZE_t* new_pos, SIZE_t n_children) nogil except -1
     cdef double node_impurity(self) nogil
     cdef void children_impurity(self, double* impurity_left,
                                 double* impurity_right) nogil
     cdef void categorical_children_impurity(self, SIZE_t n_children, SIZE_t* pos, double* impurities) nogil
     cdef void node_value(self, double* dest) nogil
-    cdef double impurity_improvement(self, double impurity, SIZE_t n_children) nogil
-    cdef double proxy_impurity_improvement(self, SIZE_t n_children) nogil
+    cdef double impurity_improvement(self, double impurity) nogil
+    cdef double proxy_impurity_improvement(self) nogil
+    cdef double categorical_impurity_improvement(self, double impurity, SIZE_t* pos, SIZE_t n_children) nogil
+    cdef double proxy_categorical_impurity_improvement(self, SIZE_t* pos, SIZE_t n_children) nogil
 
 cdef class ClassificationCriterion(Criterion):
     """Abstract criterion for classification."""

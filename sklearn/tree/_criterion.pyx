@@ -112,6 +112,9 @@ cdef class Criterion:
 
         pass
 
+    cdef int update_categorical(self, SIZE_t* new_pos, SIZE_t n_children) nogil except -1:
+        pass
+
     cdef double node_impurity(self) nogil:
         """Placeholder for calculating the impurity of the node.
 
@@ -159,7 +162,7 @@ cdef class Criterion:
 
         pass
 
-    cdef double proxy_impurity_improvement(self, SIZE_t n_children) nogil:
+    cdef double proxy_impurity_improvement(self) nogil:
         """Compute a proxy of the impurity reduction
 
         This method is used to speed up the search for the best split.
@@ -177,7 +180,7 @@ cdef class Criterion:
         return (- self.weighted_n_splits[1] * impurity_right
                 - self.weighted_n_splits[0] * impurity_left)
 
-    cdef double impurity_improvement(self, double impurity, SIZE_t n_children) nogil:
+    cdef double impurity_improvement(self, double impurity) nogil:
         """Compute the improvement in impurity
 
         This method computes the improvement in impurity when a split occurs.
@@ -210,6 +213,32 @@ cdef class Criterion:
                              self.weighted_n_node_samples * impurity_right)
                           - (self.weighted_n_splits[0] / 
                              self.weighted_n_node_samples * impurity_left)))
+
+    cdef double categorical_impurity_improvement(self, double impurity, SIZE_t* pos, SIZE_t n_children) nogil:
+        cdef double* impurities = <double*> calloc(n_children, sizeof(double))
+        cdef double improvement = impurity
+        cdef SIZE_t i
+
+        self.categorical_children_impurity(n_children, pos, impurities)
+
+        for i in range(n_children):
+            improvement -= self.weighted_n_splits[i] / self.weighted_n_node_samples * impurities[i]
+
+        free(impurities)
+        return (self.weighted_n_node_samples / self.weighted_n_samples) * (impurity - improvement)
+
+    cdef double proxy_categorical_impurity_improvement(self, SIZE_t* pos, SIZE_t n_children) nogil:
+        cdef double* impurities = <double*> calloc(n_children, sizeof(double))
+        cdef double improvement = 0.0
+        cdef SIZE_t i
+
+        self.categorical_children_impurity(n_children, pos, impurities)
+
+        for i in range(n_children):
+            improvement -= self.weighted_n_splits[i] * impurities[i]
+
+        free(impurities)
+        return improvement
 
 
 cdef class ClassificationCriterion(Criterion):
@@ -490,6 +519,33 @@ cdef class ClassificationCriterion(Criterion):
         self.pos = new_pos
         return 0
 
+    cdef int update_categorical(self, SIZE_t* new_pos, SIZE_t n_children) nogil except -1:
+
+        cdef double weight
+        cdef double w = 1.0
+        cdef SIZE_t i
+        cdef SIZE_t j
+        cdef SIZE_t start
+        cdef SIZE_t end
+
+        for i in range(n_children):
+            self.weighted_n_splits[i] = 0
+            if i == 0:
+                start = self.start
+            else:
+                start = new_pos[i-1]
+            if i == n_children - 1:
+                end = self.end
+            else:
+                end = new_pos[i]
+            weight = 0.0
+            sq_count = 0.0
+
+            for j in range(start, end):
+                if self.sample_weight != NULL:
+                    w = self.sample_weight[self.samples[j]]
+                self.weighted_n_splits[i] += w
+
     cdef double node_impurity(self) nogil:
         pass
 
@@ -714,13 +770,12 @@ cdef class Gini(ClassificationCriterion):
                     end = self.end
                 else:
                     end = pos[i]
-                weight = 0.0
+                weight = self.weighted_n_splits[i]
                 sq_count = 0.0
 
                 for j in range(start, end):
                     if self.sample_weight != NULL:
                         w = self.sample_weight[self.samples[j]]
-                    weight += w
                     counts_k[<SIZE_t> self.y[self.samples[j], k]] += w
                 for c in range(n_classes[k]):
                     sq_count += counts_k[c] * counts_k[c]
@@ -955,7 +1010,7 @@ cdef class MSE(RegressionCriterion):
 
         return impurity / self.n_outputs
 
-    cdef double proxy_impurity_improvement(self, SIZE_t n_children) nogil:
+    cdef double proxy_impurity_improvement(self) nogil:
         """Compute a proxy of the impurity reduction
 
         This method is used to speed up the search for the best split.
@@ -1336,7 +1391,7 @@ cdef class FriedmanMSE(MSE):
         improvement = n_left * n_right * diff^2 / (n_left + n_right)
     """
 
-    cdef double proxy_impurity_improvement(self, SIZE_t n_children) nogil:
+    cdef double proxy_impurity_improvement(self) nogil:
         """Compute a proxy of the impurity reduction
 
         This method is used to speed up the search for the best split.
@@ -1366,7 +1421,7 @@ cdef class FriedmanMSE(MSE):
 
         return diff * diff / (self.weighted_n_splits[0] * self.weighted_n_splits[1])
 
-    cdef double impurity_improvement(self, double impurity, SIZE_t n_children) nogil:
+    cdef double impurity_improvement(self, double impurity) nogil:
         cdef double* sum_left = self.sum_left
         cdef double* sum_right = self.sum_right
 
