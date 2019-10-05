@@ -133,7 +133,6 @@ class BaseDecisionTree(BaseEstimator, MultiOutputMixin, metaclass=ABCMeta):
             for i in range(len(X[0])):
                 cardinalities[i] = -1
         else:
-            # TODO Every column (including numerical) is currently encoded!
             self.oe = OrdinalEncoder()
             self.oe.fit(X, y)
 

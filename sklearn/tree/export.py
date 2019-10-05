@@ -275,11 +275,11 @@ class _BaseTreeExporter(object):
                 feature = "X%s%s%s" % (characters[1],
                                        tree.feature[node_id],
                                        characters[2])
-            node_string += '%s %s %s%s' % (feature,
-                                           characters[3],
-                                           round(tree.threshold[node_id],
-                                                 self.precision),
-                                           characters[4])
+            node_string += feature
+            node_string += ' %s %s%s' % (characters[3],
+                                         round(tree.threshold[node_id],
+                                               self.precision),
+                                         characters[4])
 
         # Write impurity
         if self.impurity:
@@ -477,18 +477,12 @@ class _DOTTreeExporter(_BaseTreeExporter):
             if parent is not None:
                 # Add edge to parent
                 self.out_file.write('%d -> %d' % (parent, node_id))
-                if parent == 0:
-                    # Draw True/False labels if parent is root node
-                    angles = np.array([45, -45]) * ((self.rotate - .5) * -2)
-                    self.out_file.write(' [labeldistance=2.5, labelangle=')
-                    # label = self.categories[tree.feature[parent]][node_id - 1]
-                    label = "label"
-                    if node_id == 1:
-                        self.out_file.write('%d, headlabel="%s"]' %
-                                            (angles[0], label))
-                    else:
-                        self.out_file.write('%d, headlabel="%s"]' %
-                                            (angles[1], label))
+                # Draw True/False labels if parent is root node
+                angles = np.array([45, -45]) * ((self.rotate - .5) * -2)
+                self.out_file.write(' [labeldistance=2.5, labelangle=')
+                label = self.categories[tree.feature[parent]][np.where(tree.children[parent]==node_id)[0][0]]
+                self.out_file.write('%d, headlabel="%s"]' %
+                                    (angles[0], label))
                 self.out_file.write(' ;\n')
 
             if children[0] != _tree.TREE_LEAF:
