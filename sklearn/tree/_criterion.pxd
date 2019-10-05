@@ -37,8 +37,6 @@ cdef class Criterion:
     cdef SIZE_t n_node_samples           # Number of samples in the node (end-start)
     cdef double weighted_n_samples       # Weighted number of samples (in total)
     cdef double weighted_n_node_samples  # Weighted number of samples in the node
-    # cdef double weighted_n_left          # Weighted number of samples in the left node
-    # cdef double weighted_n_right         # Weighted number of samples in the right node
     cdef double* weighted_n_splits
 
     cdef double* sum_total          # For classification criteria, the sum of the
@@ -48,7 +46,7 @@ cdef class Criterion:
                                     # where k is output index.
     cdef double* sum_left           # Same as above, but for the left side of the split
     cdef double* sum_right          # same as above, but for the right side of the split
-    cdef double* counts_k
+    cdef double* counts_k           # array to store intermediate counts for categorical splits
 
     # The criterion object is maintained such that left and right collected
     # statistics correspond to samples[start:pos] and samples[pos:end].

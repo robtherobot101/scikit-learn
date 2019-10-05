@@ -41,7 +41,6 @@ cdef class Criterion:
     def __dealloc__(self):
         """Destructor."""
 
-        print(<SIZE_t> self.counts_k)
         free(self.sum_total)
         free(self.sum_left)
         free(self.sum_right)
@@ -113,6 +112,17 @@ cdef class Criterion:
         pass
 
     cdef int update_categorical(self, SIZE_t* new_pos, SIZE_t n_children) nogil except -1:
+        """Update statistics by setting multiple split positions.
+        
+        This updates the collected statistics by moving samples to their respective
+        children. It must be implemented by the subclass.
+        
+        Parameters
+        ----------
+        new_pos : SIZE_t*
+            New index positions of samples for each successive child
+        n_children : SIZE_t
+            Number of child nodes (one more than the number of splits)"""
         pass
 
     cdef double node_impurity(self) nogil:
@@ -127,7 +137,7 @@ cdef class Criterion:
 
     cdef void children_impurity(self, double* impurity_left,
                                 double* impurity_right) nogil:
-        """Placeholder for calculating the impurity of children.
+        """Placeholder for calculating the impurity of children of binary numerical splits.
 
         Placeholder for a method which evaluates the impurity in
         children nodes, i.e. the impurity of samples[start:pos] + the impurity
@@ -146,6 +156,21 @@ cdef class Criterion:
         pass
 
     cdef void categorical_children_impurity(self, SIZE_t n_children, SIZE_t* pos, double* impurities) nogil:
+        """Placeholder for calculating the impurity of children of categorical splits.
+
+        Placeholder for a method which evaluates the impurity in
+        children nodes, i.e. the impurity of samples[start:pos[0]] + the impurity
+        of samples[pos[0]:pos[1]] ... samples[pos[n_children - 2]:end].
+
+        Parameters
+        ----------
+        n_children : SIZE_t
+            The number of children produced by the split.
+        pos : SIZE_t*
+            The indices where the splits occur
+        impurities : double*
+            The array to which impurity values are stored
+        """
         pass
 
     cdef void node_value(self, double* dest) nogil:
@@ -215,6 +240,34 @@ cdef class Criterion:
                              self.weighted_n_node_samples * impurity_left)))
 
     cdef double categorical_impurity_improvement(self, double impurity, SIZE_t* pos, SIZE_t n_children) nogil:
+        """Compute the improvement in impurity for categorical splits
+
+        This method computes the improvement in impurity when a split occurs.
+        The weighted impurity improvement equation is the following:
+
+            N_t / N * (impurity - N_t_0 / N_t * impurity_0
+                                - N_t_1 / N_t * impurity_1
+                                ...
+                                - N-t_n / N_t * impurity_n)
+
+        where N is the total number of samples, N_t is the number of samples
+        at the current node and N_t_i is the number of samples in the ith child.
+
+        Parameters
+        ----------
+        impurity : double
+            The initial impurity of the node before the split
+        
+        pos : SIZE_t*
+            Indices at which splits occur
+        
+        n_children : SIZE_t
+            Number of children produced by the split
+
+        Return
+        ------
+        double : improvement in impurity after the split occurs
+        """
         cdef double* impurities = <double*> calloc(n_children, sizeof(double))
         cdef double improvement = impurity
         cdef SIZE_t i
@@ -228,6 +281,16 @@ cdef class Criterion:
         return (self.weighted_n_node_samples / self.weighted_n_samples) * (impurity - improvement)
 
     cdef double proxy_categorical_impurity_improvement(self, SIZE_t* pos, SIZE_t n_children) nogil:
+        """Compute a proxy of the impurity reduction
+
+        This method is used to speed up the search for the best split.
+        It is a proxy quantity such that the split that maximizes this value
+        also maximizes the impurity improvement. It neglects all constant terms
+        of the impurity decrease for a given split.
+
+        The absolute impurity improvement is only computed by the
+        impurity_improvement method once the best split has been found.
+        """
         cdef double* impurities = <double*> calloc(n_children, sizeof(double))
         cdef double improvement = 0.0
         cdef SIZE_t i
@@ -254,6 +317,8 @@ cdef class ClassificationCriterion(Criterion):
             The number of targets, the dimensionality of the prediction
         n_classes : numpy.ndarray, dtype=SIZE_t
             The number of unique classes in each target
+        max_children : SIZE_t
+            The maximum number of children produced by a split
         """
 
         self.sample_weight = NULL
@@ -520,6 +585,18 @@ cdef class ClassificationCriterion(Criterion):
         return 0
 
     cdef int update_categorical(self, SIZE_t* new_pos, SIZE_t n_children) nogil except -1:
+        """Update statistics by setting multiple split positions.
+
+        Returns -1 in case of failure to allocate memory (and raise MemoryError)
+        or 0 otherwise.
+
+        Parameters
+        ----------
+        new_pos : SIZE_t*
+            New index positions of samples for each successive child
+        n_children : SIZE_t
+            Number of child nodes (one more than the number of splits)
+        """
 
         cdef double weight
         cdef double w = 1.0
@@ -747,6 +824,19 @@ cdef class Gini(ClassificationCriterion):
         impurity_right[0] = gini_right / self.n_outputs
 
     cdef void categorical_children_impurity(self, SIZE_t n_children, SIZE_t* pos, double* impurities) nogil:
+        """Evaluate the impurity in children nodes
+
+        i.e. the impurity of each child (samples[pos[i]:pos[i+1]]) using the Gini index.
+        
+        Parameters
+        ----------
+        n_children : SIZE_t
+            The number of children produced by the split.
+        pos : SIZE_t*
+            The indices where the splits occur
+        impurities : double*
+            The array to which impurity values are stored
+        """
         cdef SIZE_t* n_classes = self.n_classes
         cdef double sq_count
         cdef double* ginis = <double*> calloc(n_children, sizeof(double))
@@ -811,6 +901,8 @@ cdef class RegressionCriterion(Criterion):
 
         n_samples : SIZE_t
             The total number of samples to fit on
+        max_children : SIZE_t
+            The maximum number of children produced by a split
         """
 
         # Default values
@@ -1104,6 +1196,8 @@ cdef class MAE(RegressionCriterion):
 
         n_samples : SIZE_t
             The total number of samples to fit on
+        max_children : SIZE_t
+            The maximum number of children produced by a split
         """
 
         # Default values

@@ -181,7 +181,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         cdef SIZE_t* cardinalities_array = <SIZE_t*> malloc(sizeof(SIZE_t) * X.shape[1])
 
         cdef SIZE_t i
-
+        # Get maximum number of children a split will produce
         for i in range(X.shape[1]):
             cardinalities_array[i] = cardinalities[i]
             if cardinalities[i] > max_children:
@@ -205,6 +205,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         cdef SIZE_t n_constant_features
         cdef bint is_leaf
         cdef bint first = 1
+        cdef bint dealloc = 0
         cdef SIZE_t max_depth_seen = -1
         cdef int rc = 0
 
@@ -245,6 +246,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                            (impurity <= min_impurity_split))
 
                 if not is_leaf:
+                    dealloc = 1
                     splitter.node_split(impurity, &split, &n_constant_features)
                     cardinality = 2 if cardinalities_array[split.feature] == -1 else cardinalities_array[split.feature]
                     # If EPSILON=0 in the below comparison, float precision
@@ -266,6 +268,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 splitter.node_value(tree.value + node_id * tree.value_stride)
 
                 if not is_leaf:
+                    # Add child nodes to tree
                     rc = stack.push(start, split.pos[0], depth + 1, node_id, 0,
                                     split.impurities[0], n_constant_features)
                     if rc == -1:
@@ -284,8 +287,10 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
                 if depth > max_depth_seen:
                     max_depth_seen = depth
-                # free(split.pos)
-                # free(split.impurities)
+                if dealloc:
+                    dealloc = 0
+                    free(split.pos)
+                    free(split.impurities)
 
             if rc >= 0:
                 rc = tree._resize_c(tree.node_count)
@@ -553,17 +558,11 @@ cdef class Tree:
     max_depth : int
         The depth of the tree, i.e. the maximum depth of its leaves.
 
-    children_left : array of int, shape [node_count]
-        children_left[i] holds the node id of the left child of node i.
-        For leaves, children_left[i] == TREE_LEAF. Otherwise,
-        children_left[i] > i. This child handles the case where
+    children : array of int, shape [node_count, n_children]
+        children[i] holds the node ids of the children of node i.
+        For leaves, children[i][0] == TREE_LEAF. Otherwise,
+        children[i][0] > i. This child handles the case where
         X[:, feature[i]] <= threshold[i].
-
-    children_right : array of int, shape [node_count]
-        children_right[i] holds the node id of the right child of node i.
-        For leaves, children_right[i] == TREE_LEAF. Otherwise,
-        children_right[i] > i. This child handles the case where
-        X[:, feature[i]] > threshold[i].
 
     feature : array of int, shape [node_count]
         feature[i] holds the feature to split on, for the internal node i.
@@ -779,15 +778,9 @@ cdef class Tree:
         if parent != _TREE_UNDEFINED:
             for i in range(n_children):
                 self.nodes[parent].children[child_n] = node_id
-            # if is_left:
-            #     self.nodes[parent].children[0] = node_id
-            # else:
-            #     self.nodes[parent].children[1] = node_id
         if is_leaf:
             for i in range(n_children):
                 node.children[i] = _TREE_LEAF
-            # node.children[0] = _TREE_LEAF
-            # node.children[1] = _TREE_LEAF
             node.feature = _TREE_UNDEFINED
             node.threshold = _TREE_UNDEFINED
 
