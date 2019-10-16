@@ -601,9 +601,11 @@ cdef class Tree:
 
     property n_leaves:
         def __get__(self):
-            return np.sum(np.logical_and(
-                self.children_left == -1,
-                self.children_right == -1))
+            n = 0
+            for children in self.children:
+                if children[0] == -1:
+                    n += 1
+            return n
 
     property feature:
         def __get__(self):
