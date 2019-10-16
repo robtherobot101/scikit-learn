@@ -124,31 +124,19 @@ class BaseDecisionTree(BaseEstimator, MultiOutputMixin, metaclass=ABCMeta):
         return self.tree_.n_leaves
 
     def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted=None, feature_mask=None):
+            X_idx_sorted=None, cardinalities=None):
 
         random_state = check_random_state(self.random_state)
 
-        if feature_mask is None:
+        if cardinalities is None:
             cardinalities = np.zeros(len(X[0]), np.intp)
             for i in range(len(X[0])):
                 cardinalities[i] = -1
         else:
-            self.oe = OrdinalEncoder()
-            self.oe.fit(X, y)
+            cardinalities = np.asarray(cardinalities)
 
-            cardinalities = np.zeros(len(feature_mask), np.intp)
-            for i in range(len(feature_mask)):
-                cardinalities[i] = len(self.oe.categories_[i]) if feature_mask[i] else -1
-
-            ct = make_column_transformer((self.oe, feature_mask), remainder='passthrough')
-            X = ct.fit_transform(X, y)
-
-            # Highest number of distinct levels for a particular feature
-        if feature_mask is not None and any(feature_mask):
-            max_cardinality = max(len(x) for x in self.oe.categories_)
-        else:
-            # All features are numerical
-            max_cardinality = 2
+        # Cardinality of the features with the most levels (categorical) or two (if all numerical)
+        max_cardinality = max(2, max(cardinalities))
 
         if check_input:
             X = check_array(X, dtype=DTYPE, accept_sparse="csc")
@@ -800,7 +788,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             presort=presort)
 
     def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted=None, feature_mask=None):
+            X_idx_sorted=None, cardinalities=None):
         """Build a decision tree classifier from the training set (X, y).
 
         Parameters
@@ -840,7 +828,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             sample_weight=sample_weight,
             check_input=check_input,
             X_idx_sorted=X_idx_sorted,
-            feature_mask=feature_mask)
+            cardinalities=cardinalities)
         return self
 
     def predict_proba(self, X, check_input=True):
@@ -1143,7 +1131,7 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
             presort=presort)
 
     def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted=None, feature_mask=None):
+            X_idx_sorted=None, cardinalities=None):
         """Build a decision tree regressor from the training set (X, y).
 
         Parameters
@@ -1182,7 +1170,7 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
             sample_weight=sample_weight,
             check_input=check_input,
             X_idx_sorted=X_idx_sorted,
-            feature_mask=feature_mask)
+            cardinalities=cardinalities)
         return self
 
 

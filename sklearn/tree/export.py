@@ -276,10 +276,13 @@ class _BaseTreeExporter(object):
                                        tree.feature[node_id],
                                        characters[2])
             node_string += feature
-            node_string += ' %s %s%s' % (characters[3],
-                                         round(tree.threshold[node_id],
-                                               self.precision),
-                                         characters[4])
+            if type(self.categories[tree.feature[node_id]]) is int:
+                node_string += ' %s %s%s' % (characters[3],
+                                             round(tree.threshold[node_id],
+                                                   self.precision),
+                                             characters[4])
+            else:
+                node_string += characters[4]
 
         # Write impurity
         if self.impurity:
@@ -480,7 +483,11 @@ class _DOTTreeExporter(_BaseTreeExporter):
                 # Draw True/False labels if parent is root node
                 angles = np.array([45, -45]) * ((self.rotate - .5) * -2)
                 self.out_file.write(' [labeldistance=2.5, labelangle=')
-                label = self.categories[tree.feature[parent]][np.where(tree.children[parent]==node_id)[0][0]]
+                labels = self.categories[tree.feature[parent]]
+                if type(labels) is int:
+                    label = np.where(tree.children[parent] == node_id)[0][0] == 0
+                else:
+                    label = labels[np.where(tree.children[parent] == node_id)[0][0]]
                 self.out_file.write('%d, headlabel="%s"]' %
                                     (angles[0], label))
                 self.out_file.write(' ;\n')
