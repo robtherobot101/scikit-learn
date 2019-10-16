@@ -561,8 +561,11 @@ cdef class Tree:
     children : array of int, shape [node_count, n_children]
         children[i] holds the node ids of the children of node i.
         For leaves, children[i][0] == TREE_LEAF. Otherwise,
-        children[i][0] > i. This child handles the case where
-        X[:, feature[i]] <= threshold[i].
+        children[i][n] > i. For numerical features, children[i][0]
+        handles the case where X[:, feature[i]] <= threshold[i],
+        and children[i][1] handles the inverse case.
+        For categorical features, children[i][n] handles the case
+        where X[;, feature[i]] == n.
 
     feature : array of int, shape [node_count]
         feature[i] holds the feature to split on, for the internal node i.
