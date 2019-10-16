@@ -45,7 +45,7 @@ cdef class Criterion:
         free(self.sum_left)
         free(self.sum_right)
         free(self.weighted_n_splits)
-        # free(self.counts_k)
+        free(self.counts_k)
 
     def __getstate__(self):
         return {}
@@ -365,7 +365,7 @@ cdef class ClassificationCriterion(Criterion):
         self.sum_total = <double*> calloc(n_elements, sizeof(double))
         self.sum_left = <double*> calloc(n_elements, sizeof(double))
         self.sum_right = <double*> calloc(n_elements, sizeof(double))
-        self.counts_k = <double*> calloc(n_outputs, sizeof(double))
+        self.counts_k = <double*> calloc(max_children, sizeof(double))
 
         if (self.sum_total == NULL or
                 self.sum_left == NULL or
@@ -937,7 +937,9 @@ cdef class RegressionCriterion(Criterion):
 
         if (self.sum_total == NULL or 
                 self.sum_left == NULL or
-                self.sum_right == NULL):
+                self.sum_right == NULL or
+                self.counts_k == NULL or
+                self.weighted_n_splits == NULL):
             raise MemoryError()
 
     def __reduce__(self):
@@ -1212,6 +1214,7 @@ cdef class MAE(RegressionCriterion):
         self.n_samples = n_samples
         self.n_node_samples = 0
         self.weighted_n_node_samples = 0.0
+        self.weighted_n_splits = <double*> calloc(max_children, sizeof(double))
         self.weighted_n_splits[0] = 0.0
         self.weighted_n_splits[1] = 0.0
 
@@ -1224,7 +1227,6 @@ cdef class MAE(RegressionCriterion):
 
         self.left_child = np.empty(n_outputs, dtype='object')
         self.right_child = np.empty(n_outputs, dtype='object')
-        self.weighted_n_splits = <double*> calloc(max_children, sizeof(double))
         # initialize WeightedMedianCalculators
         for k in range(n_outputs):
             self.left_child[k] = WeightedMedianCalculator(n_samples)
