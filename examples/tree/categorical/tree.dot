@@ -1,0 +1,11 @@
+digraph Tree {
+node [shape=box, style="filled, rounded", color="black", fontname=helvetica] ;
+edge [fontname=helvetica] ;
+0 [label="outlook\ngini = 0.46\nsamples = 14\nvalue = [5, 9]\nclass = Play", fillcolor="#a7d3f3"] ;
+3 [label="gini = 0.48\nsamples = 5\nvalue = [3, 2]\nclass = Don't play", fillcolor="#f6d5bd"] ;
+0 -> 3 [labeldistance=2.5, labelangle=45, headlabel="sunny"] ;
+2 [label="gini = 0.0\nsamples = 4\nvalue = [0, 4]\nclass = Play", fillcolor="#399de5"] ;
+0 -> 2 [labeldistance=2.5, labelangle=45, headlabel="overcast"] ;
+1 [label="gini = 0.48\nsamples = 5\nvalue = [2, 3]\nclass = Play", fillcolor="#bddef6"] ;
+0 -> 1 [labeldistance=2.5, labelangle=45, headlabel="rain"] ;
+}

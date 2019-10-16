@@ -80,7 +80,7 @@ def plot_tree(decision_tree, max_depth=None, feature_names=None,
               class_names=None, label='all', filled=False,
               impurity=True, node_ids=False,
               proportion=False, rotate=False, rounded=False,
-              precision=3, ax=None, fontsize=None):
+              precision=3, ax=None, fontsize=None, categories=None):
     """Plot a decision tree.
 
     The sample counts that are shown are weighted with any sample_weights that
@@ -168,12 +168,14 @@ def plot_tree(decision_tree, max_depth=None, feature_names=None,
     [Text(251.5,345.217,'X[3] <= 0.8...
 
     """
+    if categories is None:
+        categories = [-1] * decision_tree.n_features_
     exporter = _MPLTreeExporter(
         max_depth=max_depth, feature_names=feature_names,
         class_names=class_names, label=label, filled=filled,
         impurity=impurity, node_ids=node_ids,
         proportion=proportion, rotate=rotate, rounded=rounded,
-        precision=precision, fontsize=fontsize)
+        precision=precision, fontsize=fontsize, categories=categories)
     return exporter.export(decision_tree, ax=ax)
 
 
@@ -516,13 +518,13 @@ class _MPLTreeExporter(_BaseTreeExporter):
                  class_names=None, label='all', filled=False,
                  impurity=True, node_ids=False,
                  proportion=False, rotate=False, rounded=False,
-                 precision=3, fontsize=None):
+                 precision=3, fontsize=None, categories=None):
 
         super().__init__(
             max_depth=max_depth, feature_names=feature_names,
             class_names=class_names, label=label, filled=filled,
             impurity=impurity, node_ids=node_ids, proportion=proportion,
-            rotate=rotate, rounded=rounded, precision=precision)
+            rotate=rotate, rounded=rounded, precision=precision, categories=categories)
         self.fontsize = fontsize
 
         # validate
@@ -750,6 +752,8 @@ def export_graphviz(decision_tree, out_file=None, max_depth=None,
     >>> tree.export_graphviz(clf)
     'digraph Tree {...
     """
+    if categories is None:
+        categories = [-1] * decision_tree.n_features_
 
     check_is_fitted(decision_tree, 'tree_')
     own_file = False

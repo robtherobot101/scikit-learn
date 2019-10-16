@@ -818,6 +818,11 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             cached between trees. If None, the data will be sorted here.
             Don't use this parameter unless you know what to do.
 
+        cardinalities : array-like, shape = [n_features], optional
+            Cardinality of each feature (number of distinct levels. If the
+            feature is numerical the value -1 should be provided. If this
+            parameter is not provided, all features are treated as numerical
+
         Returns
         -------
         self : object
